@@ -31,10 +31,9 @@ rayon = { version = "^1", optional = true }
 indicatif = { version = "^0.17", optional = true }
 
 [features]
-default = []
-cli = ["clap", "serde_json"]
-train = ["textgridde-rs", "rayon", "indicatif"]
-full = ["cli", "train"]
+default = ["cli", "train"]
+cli = ["dep:clap", "dep:serde_json"]
+train = ["dep:textgridde-rs", "dep:rayon", "dep:indicatif"]
 
 [[bin]]
 name = "mai-timing"

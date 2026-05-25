@@ -32,13 +32,13 @@ pub enum Commands {
         /// Path to directory containing TextGrid files
         textgrid_dir: String,
 
-        /// Path to global.yaml file (X-SAMPA -> phoneme type mappings)
-        #[arg(short = 'g', long)]
-        global_yaml: String,
+        /// Path to the mapping yaml file (TextGrid phoneme mapping -> phoneme type mappings)
+        #[arg(short = 'm', long)]
+        phoneme_map: String,
 
         /// Path to language YAML file (vowels, diphthongs, syllabic consonants)
         #[arg(short = 'l', long)]
-        language: String,
+        language_info: String,
 
         /// Output path for the timing model YAML
         #[arg(short = 'o', long, default_value = "timing_model.yaml")]
@@ -70,9 +70,9 @@ pub enum Commands {
         /// Path to timing model YAML file
         timing_model: String,
 
-        /// Path to global.yaml file (X-SAMPA -> phoneme type mappings)
+        /// Path to mapping yaml file (internal phonemes -> desired phonemes)
         #[arg(short = 'g', long)]
-        global_yaml: String,
+        phoneme_map: String,
 
         /// Phoneme sequence as JSON array of X-SAMPA strings (e.g., '["k", "a", "t"]')
         #[arg(short = 'i', long)]
@@ -102,8 +102,8 @@ pub fn run() -> Result<(), TimingError> {
     match cli.command {
         Commands::Train {
             textgrid_dir,
-            global_yaml,
-            language,
+            phoneme_map,
+            language_info,
             output,
             library,
             language_name,
@@ -112,8 +112,8 @@ pub fn run() -> Result<(), TimingError> {
             max_duration,
         } => run_train(
             &textgrid_dir,
-            &global_yaml,
-            &language,
+            &phoneme_map,
+            &language_info,
             &output,
             &library,
             &language_name,
@@ -123,11 +123,11 @@ pub fn run() -> Result<(), TimingError> {
         ),
         Commands::Predict {
             timing_model,
-            global_yaml,
+            phoneme_map,
             input,
             file,
             output_format,
-        } => run_predict(&timing_model, &global_yaml, input, file, &output_format),
+        } => run_predict(&timing_model, &phoneme_map, input, file, &output_format),
         Commands::Info { timing_model } => run_info(&timing_model),
     }
 }
@@ -135,7 +135,7 @@ pub fn run() -> Result<(), TimingError> {
 #[cfg(feature = "cli")]
 fn run_train(
     textgrid_dir: &str,
-    global_yaml_path: &str,
+    phoneme_map: &str,
     language_path: &str,
     output: &str,
     library: &str,
@@ -144,8 +144,8 @@ fn run_train(
     min_duration: u16,
     max_duration: u16,
 ) -> Result<(), TimingError> {
-    eprintln!("Loading phoneme map from {}...", global_yaml_path);
-    let phoneme_map = load_phoneme_map(global_yaml_path)?;
+    eprintln!("Loading phoneme map from {}...", phoneme_map);
+    let phoneme_map = load_phoneme_map(phoneme_map)?;
 
     eprintln!("Loading language info from {}...", language_path);
     let language_info = load_language_info(language_path)?;
@@ -191,7 +191,7 @@ fn run_train(
 #[cfg(feature = "cli")]
 fn run_predict(
     timing_model_path: &str,
-    global_yaml_path: &str,
+    phoneme_map: &str,
     input: Option<String>,
     file: Option<String>,
     output_format: &str,
@@ -217,7 +217,7 @@ fn run_predict(
     }
 
     // Load timing model and phoneme map
-    let lookup = load_timing_lookup(timing_model_path, global_yaml_path)?;
+    let lookup = load_timing_lookup(timing_model_path, phoneme_map)?;
 
     // Get predictions
     let result = lookup.predict(&phonemes);
