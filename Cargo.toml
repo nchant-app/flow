@@ -1,0 +1,42 @@
+[package]
+name = "mai-timing"
+version = "0.2.0"
+description = "Open-source phoneme timing model for voice synthesis"
+authors = [
+    "Avinash Persaud <digits0801@gmail.com>",
+    "Caleb Long <cmlong02@outlook.com>",
+    "Miguel Rocha <miguelrocham12@hotmail.com>"
+]
+license = "MIT"
+edition = "2021"
+readme = "readme.md"
+keywords = ["voice", "synthesis", "timing", "phoneme", "tts"]
+categories = ["multimedia::audio", "science"]
+
+[dependencies]
+# Core dependencies (always required)
+serde = { version = "^1", features = ["derive"] }
+serde_yaml = "^0.9"
+thiserror = "^2"
+
+# Optional: JSON support for CLI
+serde_json = { version = "^1", optional = true }
+
+# Optional: CLI dependencies
+clap = { version = "^4", features = ["derive"], optional = true }
+
+# Optional: Training dependencies
+textgridde-rs = { version = "^0.1.4", optional = true }
+rayon = { version = "^1", optional = true }
+indicatif = { version = "^0.17", optional = true }
+
+[features]
+default = []
+cli = ["clap", "serde_json"]
+train = ["textgridde-rs", "rayon", "indicatif"]
+full = ["cli", "train"]
+
+[[bin]]
+name = "mai-timing"
+path = "src/bin/mai-timing.rs"
+required-features = ["cli"]
