@@ -1,10 +1,11 @@
 [package]
-name = "mai-timing"
+name = "maghni-timing-model"
 version = "0.2.0"
 description = "Open-source phoneme timing model for voice synthesis"
 authors = [
     "Avinash Persaud <digits0801@gmail.com>",
     "Caleb Long <cmlong02@outlook.com>",
+    "Cooper Oneida <coneida08@gmail.com>",
     "Miguel Rocha <miguelrocham12@hotmail.com>"
 ]
 license = "MIT"
@@ -36,6 +37,6 @@ cli = ["dep:clap", "dep:serde_json"]
 train = ["dep:textgridde-rs", "dep:rayon", "dep:indicatif"]
 
 [[bin]]
-name = "mai-timing"
-path = "src/bin/mai-timing.rs"
+name = "maghni-timing-model"
+path = "src/bin/maghni-timing-model.rs"
 required-features = ["cli"]
