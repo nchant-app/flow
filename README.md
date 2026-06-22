@@ -1,6 +1,6 @@
-# Maghni Timing Model
+# Maghni Timing
 
-This is the non-AI timing model for Maghni, handling the allotting of consonants between and around vowels proportionally with respect to a minimum consonant to vowel ratio. In simpler terms, it decides how much of a note each consonant should take up while leaving room for the vowel so the singing doesn't get muddied. While wer are planning an eventual AI timing model, this model has potential benefits, especially for fast singing, and will be left as an option.
+This is the non-AI timing model for Maghni, handling the allotting of consonants between and around vowels proportionally with respect to a minimum consonant to vowel ratio. In simpler terms, it decides how much of a note each consonant should take up while leaving room for the vowel so the singing doesn't get muddied. While we are planning an eventual AI timing model, this model has potential benefits, especially for fast singing, and will be left as an option.
 
 ## Usage
 
@@ -70,24 +70,24 @@ We have provided some default language information files for you to use, as well
 
 ### CLI
 
-The CLI program is simple. Install cargo, the Rust CLI tool, and install  `maghni-timing-model` with the following command:
+The CLI program is simple. Install cargo, the Rust CLI tool, and install  `maghni-timing` with the following command:
 
 ```sh
-cargo install maghni-timing-model
+cargo install maghni-timing
 ```
 
 Then, you can run it like this:
 
 ```sh
-maghni-timing-model train LANGUAGE_FILE.yaml OUTPUT_FILE.yaml [--phoneme_map arpabet_to_msampa.yaml]
+maghni-timing train LANGUAGE_FILE.yaml OUTPUT_FILE.yaml [--phoneme_map arpabet_to_msampa.yaml]
 ```
 
 TODO: update functionality to actually work like this
 
-The model will be output as a YAML file, which can then be read by `maghni-timing-model predict`:
+The model will be output as a YAML file, which can then be read by `maghni-timing predict`:
 
 ```sh
-maghni-timing-model predict TIMING_MODEL.yaml NOTES.TextGrid OUTPUT.yaml
+maghni-timing predict TIMING_MODEL.yaml NOTES.TextGrid OUTPUT.yaml
 ```
 
 The output is of the `Library` format described above.
@@ -96,4 +96,3 @@ The output is of the `Library` format described above.
 
 TODO: summary
 TODO: after making lib use an object, add info about it here
-
