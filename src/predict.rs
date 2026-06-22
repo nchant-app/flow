@@ -301,6 +301,18 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
     }
 }
 
+/// Validate that all phonemes in a sequence exist in the phoneme map.
+///
+/// Returns a vector of phoneme strings that are not found in the map.
+/// An empty result means all phonemes are valid.
+pub fn validate_phonemes(phonemes: &[String], phoneme_map: &PhonemeMap) -> Vec<String> {
+    phonemes
+        .iter()
+        .filter(|p| !phoneme_map.contains(p))
+        .cloned()
+        .collect()
+}
+
 /// Load a timing model from YAML and create a lookup structure.
 ///
 /// # Arguments
@@ -491,5 +503,16 @@ mod tests {
         assert_eq!(lookup.model_version(), "1.0");
         assert!(lookup.created_at().is_none());
         assert!(lookup.source_files().is_none());
+    }
+
+    #[test]
+    fn test_validate_phonemes() {
+        let map = create_test_phoneme_map();
+        let valid = vec!["k".to_string(), "a".to_string()];
+        let invalid = vec!["k".to_string(), "zzz".to_string(), "a".to_string()];
+
+        assert!(validate_phonemes(&valid, &map).is_empty());
+        let issues = validate_phonemes(&invalid, &map);
+        assert_eq!(issues, vec!["zzz"]);
     }
 }
