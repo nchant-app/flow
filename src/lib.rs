@@ -16,21 +16,21 @@
 //! ## Quick Start
 //!
 //! ```no_run
-//! use mai_timing::train::{load_phoneme_map, load_language_info};
-//! use mai_timing::predict::TimingLookup;
+//! use maghni_timing_model::TimingEngine;
 //!
-//! // Load phoneme map from global.yaml (X-SAMPA -> phoneme type mappings)
-//! let phoneme_map = load_phoneme_map("path/to/global.yaml").unwrap();
-//!
-//! // Load language info from a language YAML file
-//! let language_info = load_language_info("path/to/english.yaml").unwrap();
-//!
-//! // Load a timing model and create a lookup structure
-//! let model = mai_timing::train::load_timing_model("path/to/timing_model.yaml").unwrap();
-//! let lookup = TimingLookup::from_model(&model, &phoneme_map);
+//! // Create an engine once, reusing it for multiple predictions
+//! let engine = TimingEngine::from_paths(
+//!     "path/to/timing_model.yaml",
+//!     "path/to/global.yaml",
+//!     "path/to/english.yaml",
+//! ).unwrap();
 //!
 //! // Predict timings for an X-SAMPA phoneme sequence
-//! let timings = lookup.get_timing(&["k".to_string(), "a".to_string(), "t".to_string()]);
+//! let result = engine.predict(&["k".to_string(), "a".to_string(), "t".to_string()]);
+//! println!("Total duration: {}ms", result.total_duration_ms);
+//!
+//! // Or get raw timing pairs
+//! let timings = engine.get_timing(&["s".to_string(), "a".to_string()]);
 //! ```
 
 // ============================================================================
@@ -45,6 +45,9 @@ pub mod cluster;
 
 /// Error types for timing operations.
 pub mod error;
+
+/// High-level engine that bundles all resources for repeated predictions.
+pub mod engine;
 
 /// Data types for timing models, phoneme maps, and language info.
 pub mod model;
@@ -62,6 +65,7 @@ pub mod cli;
 // Re-export commonly used types
 pub use classifier::PhonemeClassifier;
 pub use cluster::{split_into_clusters, Cluster};
+pub use engine::TimingEngine;
 pub use error::TimingError;
 pub use model::{
     derive_phoneme_type, ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeTiming,

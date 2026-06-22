@@ -3,7 +3,7 @@
 fn main() {
     #[cfg(feature = "cli")]
     {
-        if let Err(e) = mai_timing::cli::run() {
+        if let Err(e) = maghni_timing_model::cli::run() {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }

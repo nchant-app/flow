@@ -1,6 +1,6 @@
 [package]
 name = "maghni-timing-model"
-version = "0.2.0"
+version = "0.2.1"
 description = "Open-source phoneme timing model for voice synthesis"
 authors = [
     "Avinash Persaud <digits0801@gmail.com>",
@@ -9,7 +9,7 @@ authors = [
     "Miguel Rocha <miguelrocham12@hotmail.com>"
 ]
 license = "MIT"
-edition = "2021"
+edition = "2024"
 readme = "readme.md"
 keywords = ["voice", "synthesis", "timing", "phoneme", "tts"]
 categories = ["multimedia::audio", "science"]
@@ -38,5 +38,5 @@ train = ["dep:textgridde-rs", "dep:rayon", "dep:indicatif"]
 
 [[bin]]
 name = "maghni-timing-model"
-path = "src/bin/maghni-timing-model.rs"
+path = "src/bin/mai-timing.rs"
 required-features = ["cli"]
