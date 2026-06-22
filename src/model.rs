@@ -318,6 +318,16 @@ impl TimingResult {
     }
 }
 
+impl std::fmt::Display for TimingResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for timing in &self.timings {
+            writeln!(f, "{}: {}ms", timing.phoneme, timing.duration_ms)?;
+        }
+        writeln!(f, "---")?;
+        write!(f, "Total: {}ms", self.total_duration_ms)
+    }
+}
+
 /// Input format for utterance prediction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UtteranceInput {
@@ -551,6 +561,16 @@ mod tests {
         let result = TimingResult::from_pairs(pairs);
 
         assert_eq!(result.total_duration_ms, 480);
+    }
+
+    #[test]
+    fn test_timing_result_display() {
+        let pairs = vec![("t".to_string(), 100), ("a".to_string(), 300)];
+        let result = TimingResult::from_pairs(pairs);
+        let display = format!("{}", result);
+        assert!(display.contains("t: 100ms"));
+        assert!(display.contains("a: 300ms"));
+        assert!(display.contains("Total: 400ms"));
     }
 
     #[test]
