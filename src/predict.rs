@@ -52,6 +52,9 @@ pub struct TimingLookup<K: Eq + Hash + Clone + Debug = String> {
     metadata_library: String,
     metadata_language: String,
     metadata_voice_color: String,
+    metadata_version: String,
+    metadata_created_at: Option<String>,
+    metadata_source_files: Option<Vec<String>>,
     cluster_tree: TreeNode<K>,
     generic_tree: TreeNode<PhonemeType>,
     classifier: Box<dyn PhonemeClassifier<K> + Send + Sync>,
@@ -106,6 +109,9 @@ impl TimingLookup<String> {
             metadata_library: model.metadata.library.clone(),
             metadata_language: model.metadata.language.clone(),
             metadata_voice_color: model.metadata.voice_color.clone(),
+            metadata_version: model.version.clone(),
+            metadata_created_at: model.metadata.created_at.clone(),
+            metadata_source_files: model.metadata.source_files.clone(),
             cluster_tree,
             generic_tree,
             classifier: Box::new(classifier),
@@ -141,6 +147,9 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
             metadata_library,
             metadata_language,
             metadata_voice_color,
+            metadata_version: "1.0".to_string(),
+            metadata_created_at: None,
+            metadata_source_files: None,
             cluster_tree,
             generic_tree,
             classifier,
@@ -160,6 +169,21 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
     /// Get the voice color name from metadata.
     pub fn voice_color(&self) -> &str {
         &self.metadata_voice_color
+    }
+
+    /// Get the model version from metadata.
+    pub fn model_version(&self) -> &str {
+        &self.metadata_version
+    }
+
+    /// Get the creation timestamp, if available.
+    pub fn created_at(&self) -> Option<&str> {
+        self.metadata_created_at.as_deref()
+    }
+
+    /// Get the source file names, if available.
+    pub fn source_files(&self) -> Option<&[String]> {
+        self.metadata_source_files.as_deref()
     }
 
     /// Get the phoneme type for a given phoneme key.
@@ -453,5 +477,19 @@ mod tests {
         let result = lookup.get_timing(&[5]);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].1, DEFAULT_PLOSIVE_MS);
+    }
+
+    #[test]
+    fn test_metadata_accessors() {
+        let model = create_test_model();
+        let map = create_test_phoneme_map();
+        let lookup = TimingLookup::from_model(&model, &map);
+
+        assert_eq!(lookup.library(), "TestLib");
+        assert_eq!(lookup.language(), "English");
+        assert_eq!(lookup.voice_color(), "Default");
+        assert_eq!(lookup.model_version(), "1.0");
+        assert!(lookup.created_at().is_none());
+        assert!(lookup.source_files().is_none());
     }
 }
