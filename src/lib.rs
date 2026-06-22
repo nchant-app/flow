@@ -65,14 +65,16 @@ pub mod cli;
 // Re-export commonly used types
 pub use classifier::PhonemeClassifier;
 pub use cluster::{split_into_clusters, Cluster};
-pub use engine::TimingEngine;
+pub use engine::{TimingEngine, TimingEngineBuilder};
 pub use error::TimingError;
 pub use model::{
     derive_phoneme_type, ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeTiming,
     PhonemeType, TimingMetadata, TimingModel, TimingResult, UtteranceInput,
 };
-pub use predict::TimingLookup;
-pub use train::{load_language_info, load_phoneme_map, load_timing_model, save_timing_model};
+pub use predict::{validate_phonemes, TimingLookup};
+pub use train::{
+    load_language_info, load_phoneme_map, load_timing_model, merge_models, save_timing_model,
+};
 
 #[cfg(feature = "train")]
 pub use train::{train_from_textgrids, TrainingConfig};
