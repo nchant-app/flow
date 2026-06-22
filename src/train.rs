@@ -339,6 +339,61 @@ pub fn load_timing_model(path: &str) -> Result<TimingModel, TimingError> {
     serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))
 }
 
+/// Merge two timing models into one.
+///
+/// Combines cluster and generic timing data from both models.
+/// The resulting model uses metadata from the primary model.
+/// Duplicate phoneme sequences have their samples concatenated.
+pub fn merge_models(primary: &TimingModel, secondary: &TimingModel) -> TimingModel {
+    let mut cluster_map: HashMap<Vec<String>, Vec<Vec<u16>>> = HashMap::new();
+    let mut generic_map: HashMap<Vec<PhonemeType>, Vec<Vec<u16>>> = HashMap::new();
+
+    // Collect from primary
+    for ct in &primary.cluster_timings {
+        cluster_map
+            .entry(ct.phonemes.clone())
+            .or_default()
+            .extend(ct.samples.clone());
+    }
+    for gt in &primary.generic_timings {
+        generic_map
+            .entry(gt.types.clone())
+            .or_default()
+            .extend(gt.samples.clone());
+    }
+
+    // Merge from secondary
+    for ct in &secondary.cluster_timings {
+        cluster_map
+            .entry(ct.phonemes.clone())
+            .or_default()
+            .extend(ct.samples.clone());
+    }
+    for gt in &secondary.generic_timings {
+        generic_map
+            .entry(gt.types.clone())
+            .or_default()
+            .extend(gt.samples.clone());
+    }
+
+    let cluster_timings: Vec<ClusterTiming> = cluster_map
+        .into_iter()
+        .map(|(phonemes, samples)| ClusterTiming { phonemes, samples })
+        .collect();
+
+    let generic_timings: Vec<GenericTiming> = generic_map
+        .into_iter()
+        .map(|(types, samples)| GenericTiming { types, samples })
+        .collect();
+
+    TimingModel {
+        version: primary.version.clone(),
+        metadata: primary.metadata.clone(),
+        cluster_timings,
+        generic_timings,
+    }
+}
+
 /// Raw structure for deserializing global.yaml format.
 #[derive(Debug, serde::Deserialize)]
 struct RawGlobalYaml {
@@ -596,5 +651,39 @@ syllabic_consonants:
         assert!(!info.is_vowel("p"));
 
         fs::remove_file(tmp).ok();
+    }
+
+    #[test]
+    fn test_merge_models() {
+        let mut m1 = TimingModel::new(TimingMetadata::new("Lib1", "English", "Default"));
+        let mut ct1 = ClusterTiming::new(vec!["k".to_string(), "s".to_string()]);
+        ct1.add_sample(vec![95, 110]);
+        m1.cluster_timings.push(ct1);
+
+        let mut m2 = TimingModel::new(TimingMetadata::new("Lib2", "English", "Default"));
+        let mut ct2 = ClusterTiming::new(vec!["k".to_string(), "s".to_string()]);
+        ct2.add_sample(vec![100, 105]);
+        m2.cluster_timings.push(ct2);
+        let mut ct3 = ClusterTiming::new(vec!["t".to_string()]);
+        ct3.add_sample(vec![80]);
+        m2.cluster_timings.push(ct3);
+
+        let merged = merge_models(&m1, &m2);
+
+        assert_eq!(merged.metadata.library, "Lib1"); // uses primary metadata
+        // k,s should have 2 samples (1 from each)
+        let ks = merged
+            .cluster_timings
+            .iter()
+            .find(|c| c.phonemes == vec!["k", "s"])
+            .unwrap();
+        assert_eq!(ks.samples.len(), 2);
+        // t should have 1 sample from m2
+        let t = merged
+            .cluster_timings
+            .iter()
+            .find(|c| c.phonemes == vec!["t"])
+            .unwrap();
+        assert_eq!(t.samples.len(), 1);
     }
 }
