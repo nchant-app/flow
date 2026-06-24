@@ -4,95 +4,157 @@ This is the non-AI timing model for Maghni, handling the allotting of consonants
 
 ## Usage
 
-We provide a CLI for using the model, but the functions that CLI calls are available as a library. Regardless, you will need two files/objects to utilize the model, apart from the timing data itself.
+We provide a CLI for using the model, but the functions that CLI calls are available as a library. Apart from the timing data itself, the only input you may need is a global phoneme file — and that's optional, since maghni-timing bundles a default one.
 
 ### Training Input
 
-#### Phoneme Map
+#### Global Phoneme File
 
-The phoneme map provides a mapping from the exact phonemes used within your TextGrids to our X-SAMPA system (M-SAMPA, when the need to differentiate arrives). This is to avoid making you convert your TextGrids. This should be similar to the following:
+A single global file describes everything the model needs about a language's sound inventory:
 
-```yaml
-base_map:
-	- "ph": "p_h"
-	- "p>": "p}"
-	- "py": "p'"
-	...etc
-```
+- the articulatory **type** of every phoneme (plosive, fricative, vowel, …), used by the generic timing fallback;
+- which phonemes are **vowels** which become the boundaries used to split consonant clusters during training; and
+- the **sonorants** that can stand in for a vowel nucleus in the absence of one.
 
-If any consonants are left off this list, or if none is passed at all, we assume your TextGrids are already in our format.
+maghni-timing bundles a default global inventory, so you usually don't need to provide one. To model a specific language, supply your own file with the same structure — listing only that language's phonemes — and pass it as the global file.
 
-#### Language Information
-
-The language information file/object defines the consonants that the are expected to be present within the TextGrids. If using the CLI, this should be a YAML file similar to the following:
+Each top-level key is a phoneme type; its list holds the phonemes of that type:
 
 ```yaml
-consonants:
-	- "p_h"
-	- "p"
-	- "b"
-	...etc
+plosives:
+  - "p_h"
+  - "p"
+  - "b"
+  - "t"
+  - "d"
+  - "k"
+  - "g"
+  - "?"
+affricates:
+  - "ts"
+  - "dz"
+  - "tS"
+  - "dZ"
+fricatives:
+  - "f"
+  - "v"
+  - "s"
+  - "z"
+  - "S"
+  - "h"
+sonorants:
+  - "m"
+  - "n"
+  - "N"
+  - "l"
+  - "r"
+  - "j"
+  - "w"
+taps:
+  - "4"
 vowels:
-	- "{"
-	- "E"
-	- "I"
-	...etc
-syllabic_consonants:
-	- "m"
-	- "n"
-	- "l"
-	- "N"
+  - "{"
+  - "E"
+  - "I"
+  - "U"
+  - "u"
+  - "i"
+  - "@"
+  - "aI"
+  - "eI"
+  - "OI"
+  - "@U"
+  - "aU"
 ```
 
-The `consonants` and `vowels` arrays tell the trainer which phonemes should be considered. We toss any non-consonants, since this timing model could be better described as a consonant ratio generator. The `syllabic_consonants` field, required only in the prediction flow, is used to determine if a note without any vowels should have a consonant designed as a stand-in vowel or if the note simply has no vowel. If any consonant in that vowel-less note is within the syllabic consonants field, it's treated as a vowel.
+The phoneme labels are the canonical labels — whatever notation system you choose. If your TextGrid files already use the same labels, no label map is needed. If they use different labels (e.g. a different phoneme notation, IPA, or a custom set), provide a label map to translate them.
+
+#### Label Map (optional)
+
+If your TextGrid phoneme labels differ from the labels in the global file, provide a label map. This is a simple flat YAML mapping from TextGrid label to global file label:
+
+```yaml
+ph: "p_h"
+"p>": "p_}"
+py: "p'"
+bh: "b'"
+```
+
+Omit this file entirely if your TextGrid files already use the same labels as the global file.
 
 ### Training Output
 
-badum TODO
+The trainer reads TextGrid files from a directory and produces a `timing_model.yaml` file containing the learned cluster and generic timing data, ready for use with `predict`.
 
 ### Prediction Input
 
-TODO: summary
+Pass a list of phoneme labels (in the global file's notation) for each note you want to time. Via the CLI you can supply them as a JSON array or a YAML file.
 
-#### Notes
+## Installation
 
-For prediction, the notes you require to predict should be passed in as a simple TextGrid file with each section containing an array of the phonemes to be predicted. For example:
-
-`[ h E ] [ l oU ] [w @r 5 d]`
-
-The tier named "phonemes" will be used; if that doesn't exist, the first tier will be used. The arrays of phonemes must be split by spaces.
-
-TODO: update functionality to fit this^^
-
-## Usage and Installation
-
-We have provided some default language information files for you to use, as well as some simple mappings from common systems, but all will need to be edited to fit your needs.
-
-### CLI
-
-The CLI program is simple. Install cargo, the Rust CLI tool, and install  `maghni-timing` with the following command:
+Install [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) and then:
 
 ```sh
 cargo install maghni-timing
 ```
 
-Then, you can run it like this:
+### CLI
 
 ```sh
-maghni-timing train LANGUAGE_FILE.yaml OUTPUT_FILE.yaml [--phoneme_map arpabet_to_msampa.yaml]
+# Train a model — global file and label map are both optional
+maghni-timing train ./textgrids \
+  --output timing_model.yaml \
+  --library "MyVoice" --language-name "English" --voice-color "Default"
+
+# Train with a custom global phoneme file and a label map
+maghni-timing train ./textgrids \
+  --global-yaml english.yaml \
+  --label-map arpabet_to_english.yaml \
+  --output timing_model.yaml \
+  --library "MyVoice" --language-name "English" --voice-color "Default"
+
+# Predict timings — global file is optional (the bundled one is used by default)
+maghni-timing predict timing_model.yaml \
+  --input '["h","E","l","@U"]'
+
+# Show model info
+maghni-timing info timing_model.yaml
 ```
-
-TODO: update functionality to actually work like this
-
-The model will be output as a YAML file, which can then be read by `maghni-timing predict`:
-
-```sh
-maghni-timing predict TIMING_MODEL.yaml NOTES.TextGrid OUTPUT.yaml
-```
-
-The output is of the `Library` format described above.
 
 ### Library
 
-TODO: summary
-TODO: after making lib use an object, add info about it here
+```rust
+use maghni_timing::TimingEngine;
+
+// The bundled global inventory supplies phoneme types plus vowels, diphthongs,
+// and syllabic consonants. Use `from_paths_with_global` to pass a custom one.
+let engine = TimingEngine::from_paths("timing_model.yaml")?;
+
+let result = engine.predict(&["h".to_string(), "E".to_string(), "l".to_string(), "@U".to_string()]);
+println!("{}", result);
+```
+
+To train programmatically:
+
+```rust
+use maghni_timing::{
+    load_language_info_from_global, load_phoneme_map_from_global, load_label_map,
+    train::train_from_textgrids, TimingMetadata,
+};
+
+// Pass None to use the bundled global inventory, or Some(path) for a custom one.
+let phoneme_map = load_phoneme_map_from_global(None)?;
+let language_info = load_language_info_from_global(None)?;
+
+// Label map is optional — pass None if TextGrid labels already match
+let label_map = Some(load_label_map("label_map.yaml")?);
+
+let model = train_from_textgrids(
+    "./textgrids",
+    &phoneme_map,
+    &language_info,
+    label_map.as_ref(),
+    TimingMetadata::new("MyVoice", "English", "Default"),
+    None,
+)?;
+```

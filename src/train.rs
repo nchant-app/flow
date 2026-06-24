@@ -9,8 +9,8 @@ use std::path::Path;
 
 use crate::error::TimingError;
 use crate::model::{
-    derive_phoneme_type, ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeType,
-    TimingMetadata, TimingModel,
+    ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeType, TimingMetadata,
+    TimingModel,
 };
 
 #[cfg(feature = "train")]
@@ -68,8 +68,10 @@ impl Default for TrainingConfig {
 ///
 /// # Arguments
 /// * `textgrid_dir` - Path to directory containing TextGrid files
-/// * `phoneme_map` - Map from X-SAMPA phoneme labels to their types
+/// * `phoneme_map` - Phoneme type classifier (build with `load_phoneme_map_from_language`)
 /// * `language_info` - Language-specific info including vowel/diphthong lists
+/// * `label_map` - Optional label translator mapping TextGrid labels to language file labels.
+///   Pass `None` if your TextGrid files already use the same labels as the language file.
 /// * `metadata` - Metadata for the output model
 /// * `config` - Optional training configuration
 ///
@@ -80,6 +82,7 @@ pub fn train_from_textgrids(
     textgrid_dir: &str,
     phoneme_map: &PhonemeMap,
     language_info: &LanguageInfo,
+    label_map: Option<&HashMap<String, String>>,
     metadata: TimingMetadata,
     config: Option<TrainingConfig>,
 ) -> Result<TimingModel, TimingError> {
@@ -115,15 +118,15 @@ pub fn train_from_textgrids(
     // Process all TextGrid files in parallel
     let all_clusters: Vec<Vec<ParsedPhoneme>> = textgrid_files
         .par_iter()
-        .flat_map(
-            |path| match parse_textgrid(path, phoneme_map, language_info, &config) {
+        .flat_map(|path| {
+            match parse_textgrid(path, phoneme_map, language_info, &config, label_map) {
                 Ok(clusters) => clusters,
                 Err(e) => {
                     eprintln!("Warning: Failed to parse {:?}: {}", path, e);
                     vec![]
                 }
-            },
-        )
+            }
+        })
         .collect();
 
     // Build cluster and generic timing maps
@@ -190,6 +193,7 @@ fn parse_textgrid(
     phoneme_map: &PhonemeMap,
     language_info: &LanguageInfo,
     config: &TrainingConfig,
+    label_map: Option<&HashMap<String, String>>,
 ) -> Result<Vec<Vec<ParsedPhoneme>>, TimingError> {
     let path_str = path.display().to_string();
     let textgrid = textgridde_rs::parse_textgrid(path.to_path_buf(), true).map_err(|e| {
@@ -200,10 +204,13 @@ fn parse_textgrid(
     })?;
 
     // Get the last tier (assumed to be the phoneme tier)
-    let tier = textgrid.tiers().last().ok_or_else(|| TimingError::TextGrid {
-        path: path_str.clone(),
-        reason: "TextGrid has no tiers".to_string(),
-    })?;
+    let tier = textgrid
+        .tiers()
+        .last()
+        .ok_or_else(|| TimingError::TextGrid {
+            path: path_str.clone(),
+            reason: "TextGrid has no tiers".to_string(),
+        })?;
 
     let intervals = match tier {
         textgrid::Tier::IntervalTier(t) => t.intervals(),
@@ -211,14 +218,14 @@ fn parse_textgrid(
             return Err(TimingError::TextGrid {
                 path: path_str,
                 reason: "expected IntervalTier, got PointTier".to_string(),
-            })
+            });
         }
     };
 
     // Parse all phonemes
     let mut phonemes: Vec<ParsedPhoneme> = Vec::new();
     for interval in intervals {
-        let label = interval.text().to_string();
+        let raw_label = interval.text().to_string();
         let duration_secs = interval.get_duration();
         let duration_ms = (duration_secs * 1000.0) as u16;
 
@@ -226,6 +233,12 @@ fn parse_textgrid(
         if duration_ms < config.min_duration_ms || duration_ms > config.max_duration_ms {
             continue;
         }
+
+        // Translate label if a label map is provided
+        let label = label_map
+            .and_then(|m| m.get(&raw_label))
+            .cloned()
+            .unwrap_or(raw_label);
 
         // Warn if phoneme not in map (but still include it)
         if !is_silence(&label) && !is_noise(&label) && !phoneme_map.contains(&label) {
@@ -394,110 +407,149 @@ pub fn merge_models(primary: &TimingModel, secondary: &TimingModel) -> TimingMod
     }
 }
 
-/// Raw structure for deserializing global.yaml format.
-#[derive(Debug, serde::Deserialize)]
-struct RawGlobalYaml {
-    base_map: HashMap<String, String>,
-}
-
-/// Load a phoneme map from a global.yaml file.
+/// The default global phoneme inventory, embedded at compile time.
 ///
-/// Parses the `base_map` section (X-SAMPA -> enum name) and derives
-/// `PhonemeType` from the enum name conventions.
-pub fn load_phoneme_map(path: &str) -> Result<PhonemeMap, TimingError> {
-    let content = fs::read_to_string(path).map_err(|e| TimingError::io(path, e))?;
-    let raw: RawGlobalYaml =
-        serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))?;
+/// Users may override it by supplying their own global file with the same structure.
+const DEFAULT_GLOBAL_YAML: &str = include_str!("data/global.yaml");
 
+/// Build a `PhonemeMap` from a parsed global phoneme file.
+fn build_phoneme_map_from_global(raw: &RawGlobalFile) -> PhonemeMap {
     let mut phonemes = HashMap::new();
-    for (xsampa, enum_name) in &raw.base_map {
-        let ptype = derive_phoneme_type(enum_name);
-        phonemes.insert(xsampa.clone(), ptype);
+
+    for p in &raw.plosives {
+        phonemes.insert(p.clone(), PhonemeType::Plosive);
+    }
+    for p in &raw.affricates {
+        phonemes.insert(p.clone(), PhonemeType::Affricate);
+    }
+    for p in &raw.fricatives {
+        phonemes.insert(p.clone(), PhonemeType::Fricative);
+    }
+    for p in &raw.sonorants {
+        phonemes.insert(p.clone(), PhonemeType::Sonorant);
+    }
+    for p in &raw.taps {
+        phonemes.insert(p.clone(), PhonemeType::Tap);
+    }
+    for p in &raw.vowels {
+        phonemes.insert(p.clone(), PhonemeType::Vowel);
+    }
+    for diphthong in &raw.diphthongs {
+        phonemes.insert(diphthong.clone(), PhonemeType::Diphthong);
     }
 
-    Ok(PhonemeMap {
+    PhonemeMap {
         version: "1.0".to_string(),
-        name: "Global".to_string(),
+        name: "global".to_string(),
         phonemes,
-    })
+    }
 }
 
-/// Raw structure for deserializing language YAML files.
+/// Load a `PhonemeMap` from a global phoneme file.
 ///
-/// Matches the language file format:
+/// The global file is the single source of truth for phoneme type classification:
+/// each top-level key is a `PhonemeType` (plosives, affricates, fricatives,
+/// sonorants, taps, vowels, diphthongs) holding the phonemes of that type.
+///
+/// Pass `Some(path)` to use a custom global file, or `None` to use the default
+/// inventory bundled with maghni-timing.
+pub fn load_phoneme_map_from_global(path: Option<&str>) -> Result<PhonemeMap, TimingError> {
+    let raw = load_raw_global(path)?;
+    Ok(build_phoneme_map_from_global(&raw))
+}
+
+/// Load a label translation map from a YAML file.
+///
+/// The file should be a simple flat mapping from TextGrid phoneme labels to the
+/// labels used in your language file. For example:
+///
 /// ```yaml
-/// id: English
-/// vowels:
-///   - ["{", 65]
-/// diphthongs:
-///   - ["aI", 87, "A"]
-/// syllabic_consonants:
+/// ph: "p_h"
+/// "p>": "p_}"
+/// py: "p'"
+/// ```
+///
+/// This is optional: if your TextGrid files already use the same labels as the
+/// language file, you do not need a label map.
+pub fn load_label_map(path: &str) -> Result<HashMap<String, String>, TimingError> {
+    let content = fs::read_to_string(path).map_err(|e| TimingError::io(path, e))?;
+    serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))
+}
+
+/// Raw structure for deserializing the global phoneme file.
+///
+/// Each top-level key is a `PhonemeType`; its list holds the phonemes of that
+/// type. This single file is the source of truth for both type classification
+/// and the vowel / diphthong / syllabic-consonant data needed to split clusters.
+///
+/// ```yaml
+/// plosives:
+///   - "p"
+///   - "b"
+/// affricates:
+///   - "ts"
+/// fricatives:
+///   - "f"
+///   - "s"
+/// sonorants:
 ///   - "m"
+///   - "n"
+/// taps:
+///   - "4"
+/// vowels:
+///   - "a"
+///   - "i"
+///   - "aI"
+///   - "eI"
 /// ```
 #[derive(Debug, serde::Deserialize)]
-struct RawLanguageFile {
-    id: String,
+struct RawGlobalFile {
     #[serde(default)]
-    vowels: Vec<(String, serde_yaml::Value)>,
+    plosives: Vec<String>,
     #[serde(default)]
-    diphthongs: Vec<RawDiphthong>,
+    affricates: Vec<String>,
+    #[serde(default)]
+    fricatives: Vec<String>,
+    #[serde(default)]
+    sonorants: Vec<String>,
+    #[serde(default)]
+    taps: Vec<String>,
+    #[serde(default)]
+    vowels: Vec<String>,
+    #[serde(default)]
+    diphthongs: Vec<String>,
     #[serde(default)]
     syllabic_consonants: Vec<String>,
 }
 
-/// Raw diphthong entry: [xsampa, id, extension_vowel]
-#[derive(Debug)]
-struct RawDiphthong {
-    xsampa: String,
-    extension: String,
-}
-
-impl<'de> serde::Deserialize<'de> for RawDiphthong {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let seq: Vec<serde_yaml::Value> = Vec::deserialize(deserializer)?;
-        if seq.len() < 3 {
-            return Err(serde::de::Error::custom(
-                "Diphthong entry must have at least 3 elements: [xsampa, id, extension]",
-            ));
+/// Parse a global phoneme file (or the bundled default when `path` is `None`).
+fn load_raw_global(path: Option<&str>) -> Result<RawGlobalFile, TimingError> {
+    match path {
+        Some(path) => {
+            let content = fs::read_to_string(path).map_err(|e| TimingError::io(path, e))?;
+            serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))
         }
-        let xsampa = seq[0]
-            .as_str()
-            .ok_or_else(|| serde::de::Error::custom("Diphthong xsampa must be a string"))?
-            .to_string();
-        let extension = seq[2]
-            .as_str()
-            .ok_or_else(|| serde::de::Error::custom("Diphthong extension must be a string"))?
-            .to_string();
-        Ok(RawDiphthong { xsampa, extension })
+        None => serde_yaml::from_str(DEFAULT_GLOBAL_YAML)
+            .map_err(|e| TimingError::yaml("<embedded global>", e)),
     }
 }
 
-/// Load language info from a language YAML file.
+/// Load language info from a global phoneme file.
 ///
-/// Parses the language file format with X-SAMPA phoneme notation.
-/// Extracts vowels, diphthongs, and syllabic consonants.
-pub fn load_language_info(path: &str) -> Result<LanguageInfo, TimingError> {
-    let content = fs::read_to_string(path).map_err(|e| TimingError::io(path, e))?;
-    let raw: RawLanguageFile =
-        serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))?;
-
-    let vowels: Vec<String> = raw.vowels.into_iter().map(|(xsampa, _)| xsampa).collect();
-
-    let mut diphthongs = Vec::new();
-    let mut diphthong_extensions = HashMap::new();
-    for d in raw.diphthongs {
-        diphthong_extensions.insert(d.xsampa.clone(), d.extension);
-        diphthongs.push(d.xsampa);
-    }
+/// The vowels and diphthongs declared in the global file become the vowel
+/// boundaries used to split consonant clusters; diphthong extensions and
+/// syllabic consonants are taken from the same file.
+///
+/// Pass `Some(path)` to use a custom global file, or `None` to use the default
+/// inventory bundled with maghni-timing.
+pub fn load_language_info_from_global(path: Option<&str>) -> Result<LanguageInfo, TimingError> {
+    let raw = load_raw_global(path)?;
 
     Ok(LanguageInfo {
-        name: raw.id,
-        vowels,
-        diphthongs,
-        diphthong_extensions,
+        name: "global".to_string(),
+        vowels: raw.vowels,
+        diphthongs: raw.diphthongs,
+        diphthong_extensions: HashMap::new(),
         syllabic_consonants: raw.syllabic_consonants,
     })
 }
@@ -588,63 +640,104 @@ mod tests {
     }
 
     #[test]
-    fn test_load_phoneme_map_from_global_yaml() {
+    fn test_load_phoneme_map_from_global_default() {
+        // The embedded default global file should parse and classify correctly.
+        let map = load_phoneme_map_from_global(None).unwrap();
+
+        assert_eq!(map.get_type("p"), Some(PhonemeType::Plosive));
+        assert_eq!(map.get_type("s"), Some(PhonemeType::Fricative));
+        assert_eq!(map.get_type("a"), Some(PhonemeType::Vowel));
+        assert_eq!(map.get_type("aI"), Some(PhonemeType::Diphthong));
+        assert_eq!(map.get_type("ts"), Some(PhonemeType::Affricate));
+        assert_eq!(map.get_type("m"), Some(PhonemeType::Sonorant));
+        assert_eq!(map.get_type("4"), Some(PhonemeType::Tap));
+        assert_eq!(map.get_type("sil"), None);
+    }
+
+    #[test]
+    fn test_load_phoneme_map_from_global_custom() {
         let yaml = r#"
-base_map:
-  "p": VoicelessLabialPlosive
-  "t": VoicelessAlveolarPlosive
-  "a": OpenCentralUnroundedVowel
-  "i": CloseFrontUnroundedVowel
-  "aI": OpenCentralUnroundedNearcloseNearfrontUnroundedDiphthong
-  "sil": SILENCE
+plosives:
+  - "p"
+  - "t"
+fricatives:
+  - "s"
+  - "f"
+sonorants:
+  - "m"
+  - "n"
+taps:
+  - "4"
+affricates:
+  - "ts"
+vowels:
+  - "a"
+  - "i"
+  - "aI"
 "#;
-        let tmp = std::env::temp_dir().join("test_global.yaml");
+        let tmp = std::env::temp_dir().join("test_global_map.yaml");
         fs::write(&tmp, yaml).unwrap();
 
-        let map = load_phoneme_map(tmp.to_str().unwrap()).unwrap();
+        let map = load_phoneme_map_from_global(Some(tmp.to_str().unwrap())).unwrap();
 
         assert_eq!(map.get_type("p"), Some(PhonemeType::Plosive));
         assert_eq!(map.get_type("t"), Some(PhonemeType::Plosive));
+        assert_eq!(map.get_type("s"), Some(PhonemeType::Fricative));
         assert_eq!(map.get_type("a"), Some(PhonemeType::Vowel));
-        assert_eq!(map.get_type("i"), Some(PhonemeType::Vowel));
         assert_eq!(map.get_type("aI"), Some(PhonemeType::Diphthong));
-        assert_eq!(map.get_type("sil"), Some(PhonemeType::Special));
+        assert_eq!(map.get_type("ts"), Some(PhonemeType::Affricate));
+        assert_eq!(map.get_type("m"), Some(PhonemeType::Sonorant));
+        assert_eq!(map.get_type("4"), Some(PhonemeType::Tap));
+        assert_eq!(map.get_type("sil"), None);
 
         fs::remove_file(tmp).ok();
     }
 
     #[test]
-    fn test_load_language_info() {
+    fn test_load_language_info_from_global_default() {
+        // The bundled global file supplies vowels and diphthongs.
+        let info = load_language_info_from_global(None).unwrap();
+
+        assert!(info.is_vowel("{"));
+        assert!(info.is_vowel("aI")); // diphthong counts as a vowel boundary
+        assert!(!info.is_vowel("p"));
+        // Global file has no diphthong extensions or syllabic consonants; those
+        // come from language-specific files.
+        assert!(info.diphthong_extensions.is_empty());
+    }
+
+    #[test]
+    fn test_load_language_info_from_global_custom() {
         let yaml = r#"
-id: English
-family: IndoEuropean
-branch: Germanic
-writing_systems:
-  - latin
-consonants:
-  - ["p", 0]
-  - ["t", 6]
+plosives:
+  - "p"
+  - "t"
+fricatives:
+  - "f"
+  - "s"
+sonorants:
+  - "m"
+  - "n"
+  - "l"
 vowels:
-  - ["{", 65]
-  - ["E", 67]
-  - ["I", 71]
+  - "{"
+  - "E"
+  - "I"
 diphthongs:
-  - ["aI", 87, "A"]
-  - ["eI", 88, "E"]
+  - "aI"
+  - "eI"
 syllabic_consonants:
   - "m"
   - "n"
 "#;
-        let tmp = std::env::temp_dir().join("test_language.yaml");
+        let tmp = std::env::temp_dir().join("test_global_language.yaml");
         fs::write(&tmp, yaml).unwrap();
 
-        let info = load_language_info(tmp.to_str().unwrap()).unwrap();
+        let info = load_language_info_from_global(Some(tmp.to_str().unwrap())).unwrap();
 
-        assert_eq!(info.name, "English");
         assert_eq!(info.vowels, vec!["{", "E", "I"]);
         assert_eq!(info.diphthongs, vec!["aI", "eI"]);
-        assert_eq!(info.diphthong_extensions.get("aI"), Some(&"A".to_string()));
-        assert_eq!(info.diphthong_extensions.get("eI"), Some(&"E".to_string()));
+        assert!(info.diphthong_extensions.is_empty());
         assert_eq!(info.syllabic_consonants, vec!["m", "n"]);
         assert!(info.is_vowel("{"));
         assert!(info.is_vowel("aI"));

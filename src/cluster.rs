@@ -29,7 +29,7 @@ pub struct Cluster<K> {
 /// # Examples
 ///
 /// ```
-/// use maghni_timing_model::cluster::{split_into_clusters, Cluster};
+/// use maghni_timing::cluster::{split_into_clusters, Cluster};
 ///
 /// // [k, a, t, s, i] → clusters: [k]+a, [t,s]+i
 /// let phonemes = vec!["k", "a", "t", "s", "i"];

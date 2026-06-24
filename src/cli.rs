@@ -12,7 +12,10 @@ use crate::model::{TimingMetadata, UtteranceInput};
 #[cfg(feature = "cli")]
 use crate::predict::load_timing_lookup;
 #[cfg(feature = "cli")]
-use crate::train::{load_language_info, load_phoneme_map, load_timing_model, save_timing_model};
+use crate::train::{
+    load_label_map, load_language_info_from_global, load_phoneme_map_from_global,
+    load_timing_model, save_timing_model,
+};
 
 /// mai-timing: Open-source phoneme timing model for voice synthesis
 #[cfg(feature = "cli")]
@@ -32,13 +35,17 @@ pub enum Commands {
         /// Path to directory containing TextGrid files
         textgrid_dir: String,
 
-        /// Path to the mapping yaml file (TextGrid phoneme mapping -> phoneme type mappings)
-        #[arg(short = 'm', long)]
-        phoneme_map: String,
+        /// Optional path to a global phoneme YAML file declaring phoneme types,
+        /// vowels, diphthongs, and syllabic consonants. Omit to use the inventory
+        /// bundled with maghni-timing.
+        #[arg(short = 'g', long)]
+        global_yaml: Option<String>,
 
-        /// Path to language YAML file (vowels, diphthongs, syllabic consonants)
-        #[arg(short = 'l', long)]
-        language_info: String,
+        /// Optional path to a label map YAML file that translates TextGrid phoneme labels
+        /// to the labels used in the language file. Omit if your TextGrid files already
+        /// use the same labels.
+        #[arg(short = 'm', long)]
+        label_map: Option<String>,
 
         /// Output path for the timing model YAML
         #[arg(short = 'o', long, default_value = "timing_model.yaml")]
@@ -70,9 +77,11 @@ pub enum Commands {
         /// Path to timing model YAML file
         timing_model: String,
 
-        /// Path to mapping yaml file (internal phonemes -> desired phonemes)
+        /// Optional path to a global phoneme YAML file declaring phoneme types,
+        /// used for fallback classification of unseen clusters. Omit to use the
+        /// inventory bundled with maghni-timing.
         #[arg(short = 'g', long)]
-        phoneme_map: String,
+        global_yaml: Option<String>,
 
         /// Phoneme sequence as JSON array of X-SAMPA strings (e.g., '["k", "a", "t"]')
         #[arg(short = 'i', long)]
@@ -102,8 +111,8 @@ pub fn run() -> Result<(), TimingError> {
     match cli.command {
         Commands::Train {
             textgrid_dir,
-            phoneme_map,
-            language_info,
+            global_yaml,
+            label_map,
             output,
             library,
             language_name,
@@ -112,8 +121,8 @@ pub fn run() -> Result<(), TimingError> {
             max_duration,
         } => run_train(
             &textgrid_dir,
-            &phoneme_map,
-            &language_info,
+            global_yaml.as_deref(),
+            label_map.as_deref(),
             &output,
             &library,
             &language_name,
@@ -123,11 +132,11 @@ pub fn run() -> Result<(), TimingError> {
         ),
         Commands::Predict {
             timing_model,
-            phoneme_map,
+            global_yaml,
             input,
             file,
             output_format,
-        } => run_predict(&timing_model, &phoneme_map, input, file, &output_format),
+        } => run_predict(&timing_model, global_yaml.as_deref(), input, file, &output_format),
         Commands::Info { timing_model } => run_info(&timing_model),
     }
 }
@@ -135,8 +144,8 @@ pub fn run() -> Result<(), TimingError> {
 #[cfg(feature = "cli")]
 fn run_train(
     textgrid_dir: &str,
-    phoneme_map: &str,
-    language_path: &str,
+    global_path: Option<&str>,
+    label_map_path: Option<&str>,
     output: &str,
     library: &str,
     language_name: &str,
@@ -144,11 +153,19 @@ fn run_train(
     min_duration: u16,
     max_duration: u16,
 ) -> Result<(), TimingError> {
-    eprintln!("Loading phoneme map from {}...", phoneme_map);
-    let phoneme_map = load_phoneme_map(phoneme_map)?;
+    match global_path {
+        Some(p) => eprintln!("Loading global phoneme inventory from {}...", p),
+        None => eprintln!("Using bundled global phoneme inventory..."),
+    }
+    let phoneme_map = load_phoneme_map_from_global(global_path)?;
+    let language_info = load_language_info_from_global(global_path)?;
 
-    eprintln!("Loading language info from {}...", language_path);
-    let language_info = load_language_info(language_path)?;
+    let label_map = label_map_path
+        .map(|p| {
+            eprintln!("Loading label map from {}...", p);
+            load_label_map(p)
+        })
+        .transpose()?;
 
     let metadata = TimingMetadata::new(library, language_name, voice_color);
     let config = crate::train::TrainingConfig {
@@ -164,6 +181,7 @@ fn run_train(
             textgrid_dir,
             &phoneme_map,
             &language_info,
+            label_map.as_ref(),
             metadata,
             Some(config),
         )?;
@@ -191,7 +209,7 @@ fn run_train(
 #[cfg(feature = "cli")]
 fn run_predict(
     timing_model_path: &str,
-    phoneme_map: &str,
+    global_path: Option<&str>,
     input: Option<String>,
     file: Option<String>,
     output_format: &str,
@@ -216,8 +234,8 @@ fn run_predict(
         return Err(TimingError::EmptyInput);
     }
 
-    // Load timing model and phoneme map
-    let lookup = load_timing_lookup(timing_model_path, phoneme_map)?;
+    // Load timing model and the phoneme type classifier (custom or bundled)
+    let lookup = load_timing_lookup(timing_model_path, global_path)?;
 
     // Get predictions
     let result = lookup.predict(&phonemes);

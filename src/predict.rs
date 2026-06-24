@@ -317,20 +317,21 @@ pub fn validate_phonemes(phonemes: &[String], phoneme_map: &PhonemeMap) -> Vec<S
 ///
 /// # Arguments
 /// * `model_path` - Path to the timing model YAML file
-/// * `global_yaml_path` - Path to global.yaml file (X-SAMPA -> phoneme type mappings)
+/// * `global_path` - Optional path to a global phoneme file for type classification.
+///   Pass `None` to use the default inventory bundled with maghni-timing.
 ///
 /// # Returns
 /// A `TimingLookup` ready for prediction, or a `TimingError`.
 pub fn load_timing_lookup(
     model_path: &str,
-    global_yaml_path: &str,
+    global_path: Option<&str>,
 ) -> Result<TimingLookup<String>, TimingError> {
     let model_content =
         std::fs::read_to_string(model_path).map_err(|e| TimingError::io(model_path, e))?;
     let model: TimingModel =
         serde_yaml::from_str(&model_content).map_err(|e| TimingError::yaml(model_path, e))?;
 
-    let phoneme_map = crate::train::load_phoneme_map(global_yaml_path)?;
+    let phoneme_map = crate::train::load_phoneme_map_from_global(global_path)?;
 
     Ok(TimingLookup::from_model(&model, &phoneme_map))
 }

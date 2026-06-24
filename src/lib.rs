@@ -16,16 +16,16 @@
 //! ## Quick Start
 //!
 //! ```no_run
-//! use maghni_timing_model::TimingEngine;
+//! use maghni_timing::TimingEngine;
 //!
-//! // Create an engine once, reusing it for multiple predictions
-//! let engine = TimingEngine::from_paths(
-//!     "path/to/timing_model.yaml",
-//!     "path/to/global.yaml",
-//!     "path/to/english.yaml",
-//! ).unwrap();
+//! // The bundled global inventory supplies phoneme types plus vowels,
+//! // diphthongs, and syllabic consonants. Pass a custom global file with
+//! // `from_paths_with_global` to override it.
+//! // Create the engine once and reuse it for multiple predictions.
+//! let engine = TimingEngine::from_paths("path/to/timing_model.yaml")
+//!     .unwrap();
 //!
-//! // Predict timings for an X-SAMPA phoneme sequence
+//! // Predict timings for a phoneme sequence
 //! let result = engine.predict(&["k".to_string(), "a".to_string(), "t".to_string()]);
 //! println!("Total duration: {}ms", result.total_duration_ms);
 //!
@@ -68,12 +68,13 @@ pub use cluster::{split_into_clusters, Cluster};
 pub use engine::{TimingEngine, TimingEngineBuilder};
 pub use error::TimingError;
 pub use model::{
-    derive_phoneme_type, ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeTiming,
-    PhonemeType, TimingMetadata, TimingModel, TimingResult, UtteranceInput,
+    ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeTiming, PhonemeType,
+    TimingMetadata, TimingModel, TimingResult, UtteranceInput,
 };
 pub use predict::{validate_phonemes, TimingLookup};
 pub use train::{
-    load_language_info, load_phoneme_map, load_timing_model, merge_models, save_timing_model,
+    load_label_map, load_language_info_from_global, load_phoneme_map_from_global,
+    load_timing_model, merge_models, save_timing_model,
 };
 
 #[cfg(feature = "train")]

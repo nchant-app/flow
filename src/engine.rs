@@ -10,14 +10,10 @@
 //! # Example
 //!
 //! ```no_run
-//! use maghni_timing_model::TimingEngine;
+//! use maghni_timing::TimingEngine;
 //!
-//! // Create an engine once
-//! let engine = TimingEngine::from_paths(
-//!     "timing_model.yaml",
-//!     "global.yaml",
-//!     "english.yaml",
-//! ).unwrap();
+//! // The bundled global inventory supplies phoneme types and language info.
+//! let engine = TimingEngine::from_paths("timing_model.yaml").unwrap();
 //!
 //! // Clone is cheap (Arc reference count bump)
 //! let engine2 = engine.clone();
@@ -33,7 +29,7 @@ use std::sync::Arc;
 use crate::error::TimingError;
 use crate::model::{LanguageInfo, PhonemeMap, PhonemeType, TimingModel, TimingResult};
 use crate::predict::TimingLookup;
-use crate::train::{load_language_info, load_phoneme_map, load_timing_model};
+use crate::train::{load_language_info_from_global, load_phoneme_map_from_global, load_timing_model};
 
 /// Shared inner state of the engine (immutable after construction).
 struct TimingEngineInner {
@@ -72,15 +68,26 @@ fn default_fallbacks() -> HashMap<PhonemeType, u32> {
 }
 
 impl TimingEngine {
-    /// Create an engine from file paths.
-    pub fn from_paths(
+    /// Create an engine from a timing model, using the default bundled global inventory.
+    ///
+    /// The global phoneme file supplies both the phoneme type classifier and the
+    /// `LanguageInfo` (vowels, diphthongs, syllabic consonants). To supply a custom
+    /// global file, use [`TimingEngine::from_paths_with_global`].
+    pub fn from_paths(model_path: &str) -> Result<Self, TimingError> {
+        Self::from_paths_with_global(model_path, None)
+    }
+
+    /// Create an engine from a timing model with an optional custom global phoneme file.
+    ///
+    /// Pass `Some(path)` for `global_path` to override the default inventory, or
+    /// `None` to use the one bundled with maghni-timing.
+    pub fn from_paths_with_global(
         model_path: &str,
-        phoneme_map_path: &str,
-        language_info_path: &str,
+        global_path: Option<&str>,
     ) -> Result<Self, TimingError> {
         let model = load_timing_model(model_path)?;
-        let phoneme_map = load_phoneme_map(phoneme_map_path)?;
-        let language_info = load_language_info(language_info_path)?;
+        let phoneme_map = load_phoneme_map_from_global(global_path)?;
+        let language_info = load_language_info_from_global(global_path)?;
 
         Ok(Self::from_components(model, phoneme_map, language_info))
     }
@@ -176,14 +183,21 @@ impl TimingEngine {
         self
     }
 
-    /// Reload the engine from files, replacing all inner state.
-    pub fn reload_from_paths(
+    /// Reload the engine from a timing model, replacing all inner state.
+    ///
+    /// Uses the default bundled global inventory; for a custom global file use
+    /// [`TimingEngine::reload_from_paths_with_global`].
+    pub fn reload_from_paths(&mut self, model_path: &str) -> Result<(), TimingError> {
+        self.reload_from_paths_with_global(model_path, None)
+    }
+
+    /// Reload the engine with an optional custom global phoneme file.
+    pub fn reload_from_paths_with_global(
         &mut self,
         model_path: &str,
-        phoneme_map_path: &str,
-        language_info_path: &str,
+        global_path: Option<&str>,
     ) -> Result<(), TimingError> {
-        let new = Self::from_paths(model_path, phoneme_map_path, language_info_path)?;
+        let new = Self::from_paths_with_global(model_path, global_path)?;
         self.inner = new.inner;
         self.fallbacks = new.fallbacks;
         Ok(())
@@ -239,9 +253,24 @@ impl TimingEngineBuilder {
         self
     }
 
-    /// Load the phoneme map from a YAML file path.
-    pub fn phoneme_map_path(mut self, path: &str) -> Result<Self, TimingError> {
-        self.phoneme_map = Some(load_phoneme_map(path)?);
+    /// Load both the phoneme map and language info from a global phoneme file.
+    ///
+    /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
+    /// bundled with maghni-timing. This populates the phoneme type classifier
+    /// (for fallback) and the vowel / diphthong / syllabic-consonant data in one
+    /// step — everything the engine needs apart from the timing model itself.
+    pub fn global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
+        self.phoneme_map = Some(load_phoneme_map_from_global(path)?);
+        self.language_info = Some(load_language_info_from_global(path)?);
+        Ok(self)
+    }
+
+    /// Load just the phoneme map from a global phoneme file.
+    ///
+    /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
+    /// bundled with maghni-timing. The phoneme map drives type-based fallback.
+    pub fn phoneme_map_from_global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
+        self.phoneme_map = Some(load_phoneme_map_from_global(path)?);
         Ok(self)
     }
 
@@ -251,9 +280,12 @@ impl TimingEngineBuilder {
         self
     }
 
-    /// Load the language info from a YAML file path.
-    pub fn language_info_path(mut self, path: &str) -> Result<Self, TimingError> {
-        self.language_info = Some(load_language_info(path)?);
+    /// Load just the language info from a global phoneme file.
+    ///
+    /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
+    /// bundled with maghni-timing.
+    pub fn language_info_from_global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
+        self.language_info = Some(load_language_info_from_global(path)?);
         Ok(self)
     }
 
@@ -264,17 +296,20 @@ impl TimingEngineBuilder {
     }
 
     /// Build the engine. Returns an error if required components are missing.
+    ///
+    /// `phoneme_map` is optional: if not set, type-based fallback is disabled
+    /// (all unknown clusters fall back to default durations by type, which defaults to 0ms
+    /// for unclassified phonemes). Set it via `.phoneme_map()` or
+    /// `.phoneme_map_from_global()` for accurate fallback.
     pub fn build(self) -> Result<TimingEngine, TimingError> {
         let model = self.model.ok_or_else(|| {
             TimingError::Other(
                 "TimingModel is required. Use .model() or .model_path()".to_string(),
             )
         })?;
-        let phoneme_map = self.phoneme_map.ok_or_else(|| {
-            TimingError::Other(
-                "PhonemeMap is required. Use .phoneme_map() or .phoneme_map_path()".to_string(),
-            )
-        })?;
+        let phoneme_map = self
+            .phoneme_map
+            .unwrap_or_else(|| PhonemeMap::new("empty"));
         let language_info = self.language_info.ok_or_else(|| {
             TimingError::Other(
                 "LanguageInfo is required. Use .language_info() or .language_info_path()"
