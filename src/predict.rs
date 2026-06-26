@@ -7,13 +7,13 @@
 //! with both string-based keys (for the open-source API) and typed enum keys
 //! (for integration with mai-shared's `id::Phoneme`).
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
 use crate::classifier::PhonemeClassifier;
 use crate::error::TimingError;
 use crate::model::{PhonemeMap, PhonemeType, TimingModel, TimingResult};
+use crate::tree::{PhonemeTree, TreeNode};
 
 /// Default fallback duration (ms) for affricates when no data is available.
 const DEFAULT_AFFRICATE_MS: u32 = 250;
@@ -31,14 +31,6 @@ const DEFAULT_SPECIAL_MS: u32 = 200;
 /// Maximum recursion depth for the Level 4 recursive split fallback.
 /// Prevents stack overflow on very long unmatched clusters.
 const MAX_RECURSION_DEPTH: usize = 16;
-
-/// A node in the phoneme timing tree.
-#[derive(Debug, Clone, Default)]
-pub struct TreeNode<K> {
-    pub children: HashMap<K, TreeNode<K>>,
-    /// Duration samples: each inner Vec is one observation [phoneme1_ms, phoneme2_ms, ...]
-    pub entries: Vec<Vec<u16>>,
-}
 
 /// Runtime lookup structure for efficient timing prediction.
 ///
@@ -76,32 +68,10 @@ impl TimingLookup<String> {
     /// The phoneme map provides the mapping from X-SAMPA phoneme names to types,
     /// which is needed for the generic tree fallback.
     pub fn from_model(model: &TimingModel, phoneme_map: &PhonemeMap) -> Self {
-        let mut cluster_tree = TreeNode::default();
-        let mut generic_tree = TreeNode::default();
-
-        // Build cluster tree from cluster_timings
-        for timing in &model.cluster_timings {
-            let mut node = &mut cluster_tree;
-            for phoneme in &timing.phonemes {
-                node = node
-                    .children
-                    .entry(phoneme.clone())
-                    .or_insert_with(TreeNode::default);
-            }
-            node.entries.extend(timing.samples.clone());
-        }
-
-        // Build generic tree from generic_timings
-        for timing in &model.generic_timings {
-            let mut node = &mut generic_tree;
-            for ptype in &timing.types {
-                node = node
-                    .children
-                    .entry(*ptype)
-                    .or_insert_with(TreeNode::default);
-            }
-            node.entries.extend(timing.samples.clone());
-        }
+        let PhonemeTree {
+            cluster_tree,
+            generic_tree,
+        } = PhonemeTree::from_model(model);
 
         let classifier = crate::classifier::MapClassifier::new(phoneme_map.phonemes.clone());
 

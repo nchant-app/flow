@@ -673,6 +673,7 @@ affricates:
 vowels:
   - "a"
   - "i"
+diphthongs:
   - "aI"
 "#;
         let tmp = std::env::temp_dir().join("test_global_map.yaml");

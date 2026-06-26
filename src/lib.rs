@@ -55,6 +55,9 @@ pub mod model;
 /// Timing prediction logic and lookup structures.
 pub mod predict;
 
+/// Prefix-tree structures for cluster and generic timing lookups.
+pub mod tree;
+
 /// Training from TextGrid files.
 pub mod train;
 
@@ -72,6 +75,7 @@ pub use model::{
     TimingMetadata, TimingModel, TimingResult, UtteranceInput,
 };
 pub use predict::{validate_phonemes, TimingLookup};
+pub use tree::{PhonemeTree, TreeNode};
 pub use train::{
     load_label_map, load_language_info_from_global, load_phoneme_map_from_global,
     load_timing_model, merge_models, save_timing_model,
