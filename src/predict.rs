@@ -288,7 +288,7 @@ pub fn validate_phonemes(phonemes: &[String], phoneme_map: &PhonemeMap) -> Vec<S
 /// # Arguments
 /// * `model_path` - Path to the timing model YAML file
 /// * `global_path` - Optional path to a global phoneme file for type classification.
-///   Pass `None` to use the default inventory bundled with maghni-timing.
+///   Pass `None` to use the default inventory bundled with maghni-flow.
 ///
 /// # Returns
 /// A `TimingLookup` ready for prediction, or a `TimingError`.

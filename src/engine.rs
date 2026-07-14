@@ -10,7 +10,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use maghni_timing::TimingEngine;
+//! use maghni_flow::TimingEngine;
 //!
 //! // The bundled global inventory supplies phoneme types and language info.
 //! let engine = TimingEngine::from_paths("timing_model.yaml").unwrap();
@@ -80,7 +80,7 @@ impl TimingEngine {
     /// Create an engine from a timing model with an optional custom global phoneme file.
     ///
     /// Pass `Some(path)` for `global_path` to override the default inventory, or
-    /// `None` to use the one bundled with maghni-timing.
+    /// `None` to use the one bundled with maghni-flow.
     pub fn from_paths_with_global(
         model_path: &str,
         global_path: Option<&str>,
@@ -256,7 +256,7 @@ impl TimingEngineBuilder {
     /// Load both the phoneme map and language info from a global phoneme file.
     ///
     /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
-    /// bundled with maghni-timing. This populates the phoneme type classifier
+    /// bundled with maghni-flow. This populates the phoneme type classifier
     /// (for fallback) and the vowel / diphthong / syllabic-consonant data in one
     /// step — everything the engine needs apart from the timing model itself.
     pub fn global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
@@ -268,7 +268,7 @@ impl TimingEngineBuilder {
     /// Load just the phoneme map from a global phoneme file.
     ///
     /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
-    /// bundled with maghni-timing. The phoneme map drives type-based fallback.
+    /// bundled with maghni-flow. The phoneme map drives type-based fallback.
     pub fn phoneme_map_from_global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
         self.phoneme_map = Some(load_phoneme_map_from_global(path)?);
         Ok(self)
@@ -283,7 +283,7 @@ impl TimingEngineBuilder {
     /// Load just the language info from a global phoneme file.
     ///
     /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
-    /// bundled with maghni-timing.
+    /// bundled with maghni-flow.
     pub fn language_info_from_global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
         self.language_info = Some(load_language_info_from_global(path)?);
         Ok(self)

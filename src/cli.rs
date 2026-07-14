@@ -37,7 +37,7 @@ pub enum Commands {
 
         /// Optional path to a global phoneme YAML file declaring phoneme types,
         /// vowels, diphthongs, and syllabic consonants. Omit to use the inventory
-        /// bundled with maghni-timing.
+        /// bundled with maghni-flow.
         #[arg(short = 'g', long)]
         global_yaml: Option<String>,
 
@@ -79,7 +79,7 @@ pub enum Commands {
 
         /// Optional path to a global phoneme YAML file declaring phoneme types,
         /// used for fallback classification of unseen clusters. Omit to use the
-        /// inventory bundled with maghni-timing.
+        /// inventory bundled with maghni-flow.
         #[arg(short = 'g', long)]
         global_yaml: Option<String>,
 

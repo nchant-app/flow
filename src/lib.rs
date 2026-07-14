@@ -16,7 +16,7 @@
 //! ## Quick Start
 //!
 //! ```no_run
-//! use maghni_timing::TimingEngine;
+//! use maghni_flow::TimingEngine;
 //!
 //! // The bundled global inventory supplies phoneme types plus vowels,
 //! // diphthongs, and syllabic consonants. Pass a custom global file with
