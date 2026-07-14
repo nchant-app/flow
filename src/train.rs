@@ -410,7 +410,7 @@ pub fn merge_models(primary: &TimingModel, secondary: &TimingModel) -> TimingMod
 /// The default global phoneme inventory, embedded at compile time.
 ///
 /// Users may override it by supplying their own global file with the same structure.
-const DEFAULT_GLOBAL_YAML: &str = include_str!("data/global.yaml");
+const DEFAULT_LANGUAGE_INFO: &str = include_str!("data/global.yaml");
 
 /// Build a `PhonemeMap` from a parsed global phoneme file.
 fn build_phoneme_map_from_global(raw: &RawGlobalFile) -> PhonemeMap {
@@ -529,7 +529,7 @@ fn load_raw_global(path: Option<&str>) -> Result<RawGlobalFile, TimingError> {
             let content = fs::read_to_string(path).map_err(|e| TimingError::io(path, e))?;
             serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))
         }
-        None => serde_yaml::from_str(DEFAULT_GLOBAL_YAML)
+        None => serde_yaml::from_str(DEFAULT_LANGUAGE_INFO)
             .map_err(|e| TimingError::yaml("<embedded global>", e)),
     }
 }

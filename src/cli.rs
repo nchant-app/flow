@@ -36,10 +36,9 @@ pub enum Commands {
         textgrid_dir: String,
 
         /// Optional path to a global phoneme YAML file declaring phoneme types,
-        /// vowels, diphthongs, and syllabic consonants. Omit to use the inventory
-        /// bundled with maghni-flow.
+        /// Omit to use the inventory bundled with maghni-flow.
         #[arg(short = 'g', long)]
-        global_yaml: Option<String>,
+        language_info: Option<String>,
 
         /// Optional path to a label map YAML file that translates TextGrid phoneme labels
         /// to the labels used in the language file. Omit if your TextGrid files already
@@ -81,7 +80,7 @@ pub enum Commands {
         /// used for fallback classification of unseen clusters. Omit to use the
         /// inventory bundled with maghni-flow.
         #[arg(short = 'g', long)]
-        global_yaml: Option<String>,
+        language_info: Option<String>,
 
         /// Phoneme sequence as JSON array of X-SAMPA strings (e.g., '["k", "a", "t"]')
         #[arg(short = 'i', long)]
@@ -111,7 +110,7 @@ pub fn run() -> Result<(), TimingError> {
     match cli.command {
         Commands::Train {
             textgrid_dir,
-            global_yaml,
+            language_info,
             label_map,
             output,
             library,
@@ -121,7 +120,7 @@ pub fn run() -> Result<(), TimingError> {
             max_duration,
         } => run_train(
             &textgrid_dir,
-            global_yaml.as_deref(),
+            language_info.as_deref(),
             label_map.as_deref(),
             &output,
             &library,
@@ -132,11 +131,11 @@ pub fn run() -> Result<(), TimingError> {
         ),
         Commands::Predict {
             timing_model,
-            global_yaml,
+            language_info,
             input,
             file,
             output_format,
-        } => run_predict(&timing_model, global_yaml.as_deref(), input, file, &output_format),
+        } => run_predict(&timing_model, language_info.as_deref(), input, file, &output_format),
         Commands::Info { timing_model } => run_info(&timing_model),
     }
 }

@@ -108,7 +108,7 @@ maghni-flow train ./textgrids \
 
 # Train with a custom global phoneme file and a label map
 maghni-flow train ./textgrids \
-  --global-yaml english.yaml \
+  --language-info english.yaml \
   --label-map arpabet_to_english.yaml \
   --output timing_model.yaml \
   --library "MyVoice" --language-name "English" --voice-color "Default"
