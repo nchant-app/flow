@@ -452,7 +452,7 @@ fn build_phoneme_map_from_global(raw: &RawGlobalFile) -> PhonemeMap {
 /// sonorants, taps, vowels, diphthongs) holding the phonemes of that type.
 ///
 /// Pass `Some(path)` to use a custom global file, or `None` to use the default
-/// inventory bundled with maghni-flow.
+/// inventory bundled with flow.
 pub fn load_phoneme_map_from_global(path: Option<&str>) -> Result<PhonemeMap, TimingError> {
     let raw = load_raw_global(path)?;
     Ok(build_phoneme_map_from_global(&raw))
@@ -541,7 +541,7 @@ fn load_raw_global(path: Option<&str>) -> Result<RawGlobalFile, TimingError> {
 /// syllabic consonants are taken from the same file.
 ///
 /// Pass `Some(path)` to use a custom global file, or `None` to use the default
-/// inventory bundled with maghni-flow.
+/// inventory bundled with flow.
 pub fn load_language_info_from_global(path: Option<&str>) -> Result<LanguageInfo, TimingError> {
     let raw = load_raw_global(path)?;
 

@@ -29,7 +29,7 @@ pub struct Cluster<K> {
 /// # Examples
 ///
 /// ```
-/// use maghni_flow::cluster::{split_into_clusters, Cluster};
+/// use nchant_flow::cluster::{split_into_clusters, Cluster};
 ///
 /// // [k, a, t, s, i] → clusters: [k]+a, [t,s]+i
 /// let phonemes = vec!["k", "a", "t", "s", "i"];

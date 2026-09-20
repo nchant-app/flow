@@ -36,7 +36,7 @@ pub enum Commands {
         textgrid_dir: String,
 
         /// Optional path to a global phoneme YAML file declaring phoneme types,
-        /// Omit to use the inventory bundled with maghni-flow.
+        /// Omit to use the inventory bundled with flow.
         #[arg(short = 'g', long)]
         language_info: Option<String>,
 
@@ -78,7 +78,7 @@ pub enum Commands {
 
         /// Optional path to a global phoneme YAML file declaring phoneme types,
         /// used for fallback classification of unseen clusters. Omit to use the
-        /// inventory bundled with maghni-flow.
+        /// inventory bundled with flow.
         #[arg(short = 'g', long)]
         language_info: Option<String>,
 

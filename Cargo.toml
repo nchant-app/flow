@@ -1,5 +1,5 @@
 [package]
-name = "maghni-flow"
+name = "flow"
 version = "0.2.1"
 description = "Open-source phoneme timing model for voice synthesis"
 authors = [
@@ -37,6 +37,6 @@ cli = ["dep:clap", "dep:serde_json"]
 train = ["dep:textgridde-rs", "dep:rayon", "dep:indicatif"]
 
 [[bin]]
-name = "maghni-flow"
+name = "flow"
 path = "src/bin/mai-timing.rs"
 required-features = ["cli"]

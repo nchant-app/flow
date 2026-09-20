@@ -1,10 +1,10 @@
-# Maghni Flow
+# nChant Flow
 
-This is the non-AI timing model for Maghni, handling the allotting of consonants between and around vowels proportionally with respect to a minimum consonant to vowel ratio. In simpler terms, it decides how much of a note each consonant should take up while leaving room for the vowel so the singing doesn't get muddied. While we are planning an eventual AI timing model, this model has potential benefits, especially for fast singing, and will be left as an option.
+This is the non-AI timing model for nChant, handling the allotting of consonants between and around vowels proportionally with respect to a minimum consonant to vowel ratio. In simpler terms, it decides how much of a note each consonant should take up while leaving room for the vowel so the singing doesn't get muddied. While we are planning an eventual AI timing model, this model has potential benefits, especially for fast singing, and will be left as an option.
 
 ## Usage
 
-We provide a CLI for using the model, but the functions that CLI calls are available as a library. Apart from the timing data itself, the only input you may need is a global phoneme file — and that's optional, since maghni-flow bundles a default one.
+We provide a CLI for using the model, but the functions that CLI calls are available as a library. Apart from the timing data itself, the only input you may need is a global phoneme file — and that's optional, since flow bundles a default one.
 
 ### Training Input
 
@@ -16,7 +16,7 @@ A single global file describes everything the model needs about a language's sou
 - which phonemes are **vowels** which become the boundaries used to split consonant clusters during training; and
 - the **sonorants** that can stand in for a vowel nucleus in the absence of one.
 
-maghni-flow bundles a default global inventory, so you usually don't need to provide one. To model a specific language, supply your own file with the same structure — listing only that language's phonemes — and pass it as the global file.
+flow bundles a default global inventory, so you usually don't need to provide one. To model a specific language, supply your own file with the same structure — listing only that language's phonemes — and pass it as the global file.
 
 Each top-level key is a phoneme type; its list holds the phonemes of that type:
 
@@ -95,36 +95,36 @@ Pass a list of phoneme labels (in the global file's notation) for each note you 
 Install [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) and then:
 
 ```sh
-cargo install maghni-flow
+cargo install flow
 ```
 
 ### CLI
 
 ```sh
 # Train a model — global file and label map are both optional
-maghni-flow train ./textgrids \
+flow train ./textgrids \
   --output timing_model.yaml \
   --library "MyVoice" --language-name "English" --voice-color "Default"
 
 # Train with a custom global phoneme file and a label map
-maghni-flow train ./textgrids \
+flow train ./textgrids \
   --language-info english.yaml \
   --label-map arpabet_to_english.yaml \
   --output timing_model.yaml \
   --library "MyVoice" --language-name "English" --voice-color "Default"
 
 # Predict timings — global file is optional (the bundled one is used by default)
-maghni-flow predict timing_model.yaml \
+flow predict timing_model.yaml \
   --input '["h","E","l","@U"]'
 
 # Show model info
-maghni-flow info timing_model.yaml
+flow info timing_model.yaml
 ```
 
 ### Library
 
 ```rust
-use maghni_flow::TimingEngine;
+use nchant_flow::TimingEngine;
 
 // The bundled global inventory supplies phoneme types plus vowels, diphthongs,
 // and syllabic consonants. Use `from_paths_with_global` to pass a custom one.
@@ -137,7 +137,7 @@ println!("{}", result);
 To train programmatically:
 
 ```rust
-use maghni_flow::{
+use nchant_flow::{
     load_language_info_from_global, load_phoneme_map_from_global, load_label_map,
     train::train_from_textgrids, TimingMetadata,
 };

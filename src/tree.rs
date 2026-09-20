@@ -1,7 +1,7 @@
 //! Prefix-tree (trie) structures for phoneme timing lookups.
 //!
 //! This module provides the built-in support for the two timing trees used
-//! throughout Maghni:
+//! throughout nChant:
 //!
 //! - a **specific** cluster tree, keyed by phoneme (e.g. X-SAMPA `String`s),
 //!   holding exact-match duration samples, and
