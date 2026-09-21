@@ -3,7 +3,7 @@ name = "nchant-flow"
 version = "0.3.0"
 description = "Open-source phoneme timing model for voice synthesis"
 authors = [
-    "Caleb Long <cmlong02@outlook.com>",
+    "Caleb Long <ccodaze@mailbox.org>",
 ]
 license = "MIT"
 edition = "2024"
