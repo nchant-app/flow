@@ -49,7 +49,7 @@ pub mod error;
 /// High-level engine that bundles all resources for repeated predictions.
 pub mod engine;
 
-/// Data types for timing models, phoneme maps, and language info.
+/// Data types for timing models and language info.
 pub mod model;
 
 /// Timing prediction logic and lookup structures.
@@ -67,19 +67,19 @@ pub mod cli;
 
 // Re-export commonly used types
 pub use classifier::PhonemeClassifier;
-pub use cluster::{split_into_clusters, Cluster};
+pub use cluster::{Cluster, split_into_clusters};
 pub use engine::{TimingEngine, TimingEngineBuilder};
 pub use error::TimingError;
 pub use model::{
     ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeTiming, PhonemeType,
     TimingMetadata, TimingModel, TimingResult, UtteranceInput,
 };
-pub use predict::{validate_phonemes, TimingLookup};
-pub use tree::{PhonemeTree, TreeNode};
+pub use predict::{TimingLookup, validate_phonemes};
 pub use train::{
-    load_label_map, load_language_info_from_global, load_phoneme_map_from_global,
-    load_timing_model, merge_models, save_timing_model,
+    load_label_map, load_language_info_from_path, load_phoneme_map_from_path, load_timing_model,
+    merge_models, save_timing_model,
 };
+pub use tree::{PhonemeTree, TreeNode};
 
 #[cfg(feature = "train")]
-pub use train::{train_from_textgrids, TrainingConfig};
+pub use train::{TrainingConfig, train_from_textgrids};

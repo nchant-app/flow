@@ -7,15 +7,16 @@ use clap::{Parser, Subcommand};
 
 #[cfg(feature = "cli")]
 use crate::error::TimingError;
+#[cfg(all(feature = "cli", feature = "train"))]
+use crate::model::TimingMetadata;
 #[cfg(feature = "cli")]
-use crate::model::{TimingMetadata, UtteranceInput};
+use crate::model::UtteranceInput;
 #[cfg(feature = "cli")]
 use crate::predict::load_timing_lookup;
 #[cfg(feature = "cli")]
-use crate::train::{
-    load_label_map, load_language_info_from_global, load_phoneme_map_from_global,
-    load_timing_model, save_timing_model,
-};
+use crate::train::load_timing_model;
+#[cfg(all(feature = "cli", feature = "train"))]
+use crate::train::{load_label_map, load_language_info_from_path, save_timing_model};
 
 /// mai-timing: Open-source phoneme timing model for voice synthesis
 #[cfg(feature = "cli")]
@@ -38,13 +39,13 @@ pub enum Commands {
         /// Optional path to a global phoneme YAML file declaring phoneme types,
         /// Omit to use the inventory bundled with flow.
         #[arg(short = 'g', long)]
-        language_info: Option<String>,
+        language_info_path: Option<String>,
 
         /// Optional path to a label map YAML file that translates TextGrid phoneme labels
         /// to the labels used in the language file. Omit if your TextGrid files already
         /// use the same labels.
         #[arg(short = 'm', long)]
-        label_map: Option<String>,
+        label_map_path: Option<String>,
 
         /// Output path for the timing model YAML
         #[arg(short = 'o', long, default_value = "timing_model.yaml")]
@@ -110,8 +111,8 @@ pub fn run() -> Result<(), TimingError> {
     match cli.command {
         Commands::Train {
             textgrid_dir,
-            language_info,
-            label_map,
+            language_info_path,
+            label_map_path,
             output,
             library,
             language_name,
@@ -120,8 +121,8 @@ pub fn run() -> Result<(), TimingError> {
             max_duration,
         } => run_train(
             &textgrid_dir,
-            language_info.as_deref(),
-            label_map.as_deref(),
+            language_info_path.as_deref(),
+            label_map_path.as_deref(),
             &output,
             &library,
             &language_name,
@@ -135,15 +136,21 @@ pub fn run() -> Result<(), TimingError> {
             input,
             file,
             output_format,
-        } => run_predict(&timing_model, language_info.as_deref(), input, file, &output_format),
+        } => run_predict(
+            &timing_model,
+            language_info.as_deref(),
+            input,
+            file,
+            &output_format,
+        ),
         Commands::Info { timing_model } => run_info(&timing_model),
     }
 }
 
-#[cfg(feature = "cli")]
+#[cfg(all(feature = "cli", feature = "train"))]
 fn run_train(
     textgrid_dir: &str,
-    global_path: Option<&str>,
+    language_info_path: Option<&str>,
     label_map_path: Option<&str>,
     output: &str,
     library: &str,
@@ -152,12 +159,11 @@ fn run_train(
     min_duration: u16,
     max_duration: u16,
 ) -> Result<(), TimingError> {
-    match global_path {
+    match language_info_path {
         Some(p) => eprintln!("Loading global phoneme inventory from {}...", p),
         None => eprintln!("Using bundled global phoneme inventory..."),
     }
-    let phoneme_map = load_phoneme_map_from_global(global_path)?;
-    let language_info = load_language_info_from_global(global_path)?;
+    let language_info = load_language_info_from_path(language_info_path)?;
 
     let label_map = label_map_path
         .map(|p| {
@@ -174,35 +180,41 @@ fn run_train(
 
     eprintln!("Training from TextGrid files in {}...", textgrid_dir);
 
-    #[cfg(feature = "train")]
-    {
-        let model = crate::train::train_from_textgrids(
-            textgrid_dir,
-            &phoneme_map,
-            &language_info,
-            label_map.as_ref(),
-            metadata,
-            Some(config),
-        )?;
+    let model = crate::train::train_from_textgrids(
+        textgrid_dir,
+        &language_info,
+        label_map.as_ref(),
+        metadata,
+        Some(config),
+    )?;
 
-        eprintln!(
-            "Built model with {} cluster patterns and {} generic patterns",
-            model.cluster_timings.len(),
-            model.generic_timings.len()
-        );
+    eprintln!(
+        "Built model with {} cluster patterns and {} generic patterns",
+        model.cluster_timings.len(),
+        model.generic_timings.len()
+    );
 
-        save_timing_model(&model, output)?;
-        eprintln!("Saved timing model to {}", output);
-    }
-
-    #[cfg(not(feature = "train"))]
-    {
-        return Err(TimingError::Other(
-            "Training feature not enabled. Rebuild with --features train".to_string(),
-        ));
-    }
+    save_timing_model(&model, output)?;
+    eprintln!("Saved timing model to {}", output);
 
     Ok(())
+}
+
+#[cfg(all(feature = "cli", not(feature = "train")))]
+fn run_train(
+    _textgrid_dir: &str,
+    _language_info_path: Option<&str>,
+    _label_map_path: Option<&str>,
+    _output: &str,
+    _library: &str,
+    _language_name: &str,
+    _voice_color: &str,
+    _min_duration: u16,
+    _max_duration: u16,
+) -> Result<(), TimingError> {
+    Err(TimingError::Other(
+        "Training feature not enabled. Rebuild with --features train".to_string(),
+    ))
 }
 
 #[cfg(feature = "cli")]

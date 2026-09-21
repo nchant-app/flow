@@ -34,54 +34,12 @@ pub enum PhonemeType {
     None,
 }
 
-/// Derive the `PhonemeType` from an internal enum name string.
-///
-/// This uses the naming conventions from global.yaml's enum names
-/// (e.g., "VoicelessAlveolarPlosive" -> Plosive) to determine the type.
-pub fn derive_phoneme_type(enum_name: &str) -> PhonemeType {
-    if enum_name == "SILENCE" || enum_name == "BREATH" {
-        return PhonemeType::Special;
-    }
-    if enum_name == "SPEAKER_NOISE" || enum_name == "UNKNOWN_PHONEME" {
-        return PhonemeType::None;
-    }
-    if enum_name.contains("Vowel") {
-        return PhonemeType::Vowel;
-    }
-    if enum_name.contains("Diphthong") {
-        return PhonemeType::Diphthong;
-    }
-    if enum_name.contains("Affricate") {
-        return PhonemeType::Affricate;
-    }
-    if enum_name.contains("Plosive") {
-        return PhonemeType::Plosive;
-    }
-    if enum_name.contains("Fricative") {
-        return PhonemeType::Fricative;
-    }
-    if enum_name.contains("Tap") {
-        return PhonemeType::Tap;
-    }
-    // Sonorants: nasals, approximants, trills, laterals, taps (other than AlveolarTap)
-    if enum_name.contains("Nasal")
-        || enum_name.contains("Approximant")
-        || enum_name.contains("Trill")
-        || enum_name.contains("Lateral")
-    {
-        return PhonemeType::Sonorant;
-    }
-    PhonemeType::None
-}
-
 /// A phoneme map that defines available phonemes and their types.
 ///
 /// Maps X-SAMPA phoneme strings to their articulatory type.
 /// Can be built from a global.yaml file or constructed manually.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhonemeMap {
-    /// Version of the phoneme map format
-    pub version: String,
     /// Human-readable name for this phoneme map
     pub name: String,
     /// Mapping from X-SAMPA phoneme string to its type
@@ -92,7 +50,6 @@ impl PhonemeMap {
     /// Create a new empty phoneme map.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            version: "1.0".to_string(),
             name: name.into(),
             phonemes: HashMap::new(),
         }
@@ -123,14 +80,27 @@ impl PhonemeMap {
 pub struct LanguageInfo {
     /// Language name (e.g., "English", "Japanese")
     pub name: String,
+    /// Plosive X-SAMPA strings.
+    pub plosives: Vec<String>,
+    /// Affricate X-SAMPA strings.
+    pub affricates: Vec<String>,
+    /// Fricative X-SAMPA strings.
+    pub fricatives: Vec<String>,
+    /// Sonorant X-SAMPA strings.
+    pub sonorants: Vec<String>,
+    /// Tap and flap X-SAMPA strings.
+    pub taps: Vec<String>,
     /// Monophthong vowel X-SAMPA strings
     pub vowels: Vec<String>,
     /// Diphthong X-SAMPA strings
     pub diphthongs: Vec<String>,
-    /// Diphthong -> extension vowel mapping (e.g., "aI" -> "A")
+    /// Extension vowel for each diphthong, when defined.
+    #[serde(default)]
     pub diphthong_extensions: HashMap<String, String>,
     /// Syllabic consonant X-SAMPA strings (for future use)
     pub syllabic_consonants: Vec<String>,
+    /// Mapping from X-SAMPA phonemes to their articulatory types.
+    pub phonemes: HashMap<String, PhonemeType>,
 }
 
 impl LanguageInfo {
@@ -138,24 +108,48 @@ impl LanguageInfo {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            plosives: Vec::new(),
+            affricates: Vec::new(),
+            fricatives: Vec::new(),
+            sonorants: Vec::new(),
+            taps: Vec::new(),
             vowels: Vec::new(),
             diphthongs: Vec::new(),
             diphthong_extensions: HashMap::new(),
             syllabic_consonants: Vec::new(),
+            phonemes: HashMap::new(),
         }
     }
 
     /// Add a vowel phoneme (X-SAMPA string).
     pub fn add_vowel(&mut self, phoneme: impl Into<String>) {
-        self.vowels.push(phoneme.into());
+        let phoneme = phoneme.into();
+        self.vowels.push(phoneme.clone());
+        self.phonemes.insert(phoneme, PhonemeType::Vowel);
     }
 
     /// Add a diphthong phoneme (X-SAMPA string) with its extension vowel.
     pub fn add_diphthong(&mut self, phoneme: impl Into<String>, extension: impl Into<String>) {
-        let p = phoneme.into();
-        let e = extension.into();
-        self.diphthong_extensions.insert(p.clone(), e);
-        self.diphthongs.push(p);
+        let phoneme = phoneme.into();
+        self.diphthongs.push(phoneme.clone());
+        self.diphthong_extensions
+            .insert(phoneme.clone(), extension.into());
+        self.phonemes.insert(phoneme, PhonemeType::Diphthong);
+    }
+
+    /// Add a phoneme and its articulatory type.
+    pub fn add_phoneme(&mut self, phoneme: impl Into<String>, phoneme_type: PhonemeType) {
+        self.phonemes.insert(phoneme.into(), phoneme_type);
+    }
+
+    /// Get the articulatory type of a phoneme.
+    pub fn get_type(&self, phoneme: &str) -> Option<PhonemeType> {
+        self.phonemes.get(phoneme).copied()
+    }
+
+    /// Check whether a phoneme is present in this language inventory.
+    pub fn contains(&self, phoneme: &str) -> bool {
+        self.phonemes.contains_key(phoneme)
     }
 
     /// Check if a phoneme is a vowel or diphthong (i.e., a syllable nucleus).
@@ -167,7 +161,7 @@ impl LanguageInfo {
 /// Metadata for a timing model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimingMetadata {
-    /// Voice library name (e.g., "Oliver", "Akane")
+    /// Voice library name (e.g., "ANGEL", "DAMIEN")
     pub library: String,
     /// Language name (e.g., "English", "Japanese")
     pub language: String,
@@ -369,77 +363,6 @@ mod tests {
 
         assert_eq!(result.timings.len(), 2);
         assert_eq!(result.total_duration_ms, 400);
-    }
-
-    #[test]
-    fn test_derive_phoneme_type() {
-        assert_eq!(
-            derive_phoneme_type("VoicelessAlveolarPlosive"),
-            PhonemeType::Plosive
-        );
-        assert_eq!(
-            derive_phoneme_type("VoicelessPostalveolarAffricate"),
-            PhonemeType::Affricate
-        );
-        assert_eq!(
-            derive_phoneme_type("VoicelessLabiodentalFricative"),
-            PhonemeType::Fricative
-        );
-        assert_eq!(
-            derive_phoneme_type("CloseFrontUnroundedVowel"),
-            PhonemeType::Vowel
-        );
-        assert_eq!(
-            derive_phoneme_type("NasalizedMidFrontUnroundedVowel"),
-            PhonemeType::Vowel
-        );
-        assert_eq!(
-            derive_phoneme_type("OpenCentralUnroundedNearcloseNearfrontUnroundedDiphthong"),
-            PhonemeType::Diphthong
-        );
-        assert_eq!(
-            derive_phoneme_type("MidFrontUnroundedCloseFrontUnroundedDiphthong"),
-            PhonemeType::Diphthong
-        );
-        assert_eq!(derive_phoneme_type("LabialNasal"), PhonemeType::Sonorant);
-        assert_eq!(
-            derive_phoneme_type("AlveolarApproximant"),
-            PhonemeType::Sonorant
-        );
-        assert_eq!(derive_phoneme_type("AlveolarTap"), PhonemeType::Tap);
-        assert_eq!(
-            derive_phoneme_type("PalatalizedAlveolarTap"),
-            PhonemeType::Tap
-        );
-        assert_eq!(derive_phoneme_type("AlveolarTrill"), PhonemeType::Sonorant);
-        assert_eq!(derive_phoneme_type("MoraicNasal"), PhonemeType::Sonorant);
-        assert_eq!(derive_phoneme_type("SILENCE"), PhonemeType::Special);
-        assert_eq!(derive_phoneme_type("BREATH"), PhonemeType::Special);
-        assert_eq!(derive_phoneme_type("SPEAKER_NOISE"), PhonemeType::None);
-        assert_eq!(
-            derive_phoneme_type("GlottalFricative"),
-            PhonemeType::Fricative
-        );
-        assert_eq!(derive_phoneme_type("GlottalPlosive"), PhonemeType::Plosive);
-    }
-
-    #[test]
-    fn test_derive_phoneme_type_unknown_returns_none() {
-        assert_eq!(
-            derive_phoneme_type("SomethingCompletelyUnknown"),
-            PhonemeType::None
-        );
-        assert_eq!(derive_phoneme_type(""), PhonemeType::None);
-        assert_eq!(derive_phoneme_type("UNKNOWN_PHONEME"), PhonemeType::None);
-    }
-
-    #[test]
-    fn test_derive_phoneme_type_lateral() {
-        assert_eq!(
-            derive_phoneme_type("AlveolarLateralApproximant"),
-            PhonemeType::Sonorant
-        );
-        assert_eq!(derive_phoneme_type("VelarLateral"), PhonemeType::Sonorant);
     }
 
     #[test]

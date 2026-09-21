@@ -12,7 +12,7 @@ use std::hash::Hash;
 
 use crate::classifier::PhonemeClassifier;
 use crate::error::TimingError;
-use crate::model::{PhonemeMap, PhonemeType, TimingModel, TimingResult};
+use crate::model::{LanguageInfo, PhonemeType, TimingModel, TimingResult};
 use crate::tree::{PhonemeTree, TreeNode};
 
 /// Default fallback duration (ms) for affricates when no data is available.
@@ -38,7 +38,7 @@ const MAX_RECURSION_DEPTH: usize = 16;
 /// for the open-source string-based API, or `TimingLookup<YourPhonemeEnum>` for
 /// typed phoneme keys.
 ///
-/// Built from a `TimingModel` and `PhonemeMap`, this structure provides O(k) lookup
+/// Built from a `TimingModel` and `LanguageInfo`, this structure provides O(k) lookup
 /// where k is the length of the phoneme cluster.
 pub struct TimingLookup<K: Eq + Hash + Clone + Debug = String> {
     metadata_library: String,
@@ -63,17 +63,17 @@ impl<K: Eq + Hash + Clone + Debug> Debug for TimingLookup<K> {
 }
 
 impl TimingLookup<String> {
-    /// Build a TimingLookup from a TimingModel and PhonemeMap.
+    /// Build a TimingLookup from a TimingModel and LanguageInfo.
     ///
-    /// The phoneme map provides the mapping from X-SAMPA phoneme names to types,
+    /// The language info provides the mapping from X-SAMPA phoneme names to types,
     /// which is needed for the generic tree fallback.
-    pub fn from_model(model: &TimingModel, phoneme_map: &PhonemeMap) -> Self {
+    pub fn from_model(model: &TimingModel, language_info: &LanguageInfo) -> Self {
         let PhonemeTree {
             cluster_tree,
             generic_tree,
         } = PhonemeTree::from_model(model);
 
-        let classifier = crate::classifier::MapClassifier::new(phoneme_map.phonemes.clone());
+        let classifier = crate::classifier::MapClassifier::new(language_info.phonemes.clone());
 
         Self {
             metadata_library: model.metadata.library.clone(),
@@ -91,12 +91,7 @@ impl TimingLookup<String> {
     /// Get timing for a cluster and return as a TimingResult.
     pub fn predict(&self, phonemes: &[String]) -> TimingResult {
         let pairs = self.get_timing(phonemes);
-        TimingResult::from_pairs(
-            pairs
-                .into_iter()
-                .map(|(k, v)| (k.clone(), v))
-                .collect(),
-        )
+        TimingResult::from_pairs(pairs.into_iter().map(|(k, v)| (k.clone(), v)).collect())
     }
 }
 
@@ -211,11 +206,7 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
 
         if found && !node.entries.is_empty() {
             let times = Self::get_average_timing(&node.entries);
-            return cluster
-                .iter()
-                .zip(times)
-                .map(|(p, t)| (p, t))
-                .collect();
+            return cluster.iter().zip(times).map(|(p, t)| (p, t)).collect();
         }
 
         // Level 2: Try generic tree (by phoneme type)
@@ -235,11 +226,7 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
 
         if found && !node.entries.is_empty() {
             let times = Self::get_average_timing(&node.entries);
-            return cluster
-                .iter()
-                .zip(times)
-                .map(|(p, t)| (p, t))
-                .collect();
+            return cluster.iter().zip(times).map(|(p, t)| (p, t)).collect();
         }
 
         // Level 3: Default timing for single phonemes (also used as fallback when
@@ -271,14 +258,14 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
     }
 }
 
-/// Validate that all phonemes in a sequence exist in the phoneme map.
+/// Validate that all phonemes in a sequence exist in the language inventory.
 ///
 /// Returns a vector of phoneme strings that are not found in the map.
 /// An empty result means all phonemes are valid.
-pub fn validate_phonemes(phonemes: &[String], phoneme_map: &PhonemeMap) -> Vec<String> {
+pub fn validate_phonemes(phonemes: &[String], language_info: &LanguageInfo) -> Vec<String> {
     phonemes
         .iter()
-        .filter(|p| !phoneme_map.contains(p))
+        .filter(|p| !language_info.contains(p))
         .cloned()
         .collect()
 }
@@ -301,9 +288,9 @@ pub fn load_timing_lookup(
     let model: TimingModel =
         serde_yaml::from_str(&model_content).map_err(|e| TimingError::yaml(model_path, e))?;
 
-    let phoneme_map = crate::train::load_phoneme_map_from_global(global_path)?;
+    let language_info = crate::train::load_language_info_from_path(global_path)?;
 
-    Ok(TimingLookup::from_model(&model, &phoneme_map))
+    Ok(TimingLookup::from_model(&model, &language_info))
 }
 
 #[cfg(test)]
@@ -337,8 +324,8 @@ mod tests {
         model
     }
 
-    fn create_test_phoneme_map() -> PhonemeMap {
-        let mut map = PhonemeMap::new("Test");
+    fn create_test_phoneme_map() -> LanguageInfo {
+        let mut map = LanguageInfo::new("Test");
         map.add_phoneme("k", PhonemeType::Plosive);
         map.add_phoneme("t", PhonemeType::Plosive);
         map.add_phoneme("s", PhonemeType::Fricative);
@@ -462,7 +449,7 @@ mod tests {
         assert_eq!(result[0].1, DEFAULT_PLOSIVE_MS);
     }
 
-    /// Build a model and phoneme map that exercise every level of the fallback
+    /// Build a model and language inventory that exercise every level of the fallback
     /// cascade with distinct, unambiguous timing values:
     ///
     /// - Exact cluster `[k, s]`  -> avg `[95, 110]`
@@ -473,7 +460,7 @@ mod tests {
     /// The exact cluster `[k, s]` means the prefix node `k` exists but carries no
     /// entries of its own, which lets us test that a partial exact-path match
     /// still falls through to the generic tree.
-    fn create_cascade_model() -> (TimingModel, PhonemeMap) {
+    fn create_cascade_model() -> (TimingModel, LanguageInfo) {
         let mut model = TimingModel::new(TimingMetadata::new("Cascade", "English", "Default"));
 
         let mut ks = ClusterTiming::new(vec!["k".to_string(), "s".to_string()]);
@@ -484,7 +471,8 @@ mod tests {
         g_plosive.add_sample(vec![70]);
         model.generic_timings.push(g_plosive);
 
-        let mut g_plos_fric = GenericTiming::new(vec![PhonemeType::Plosive, PhonemeType::Fricative]);
+        let mut g_plos_fric =
+            GenericTiming::new(vec![PhonemeType::Plosive, PhonemeType::Fricative]);
         g_plos_fric.add_sample(vec![95, 125]);
         model.generic_timings.push(g_plos_fric);
 
@@ -492,7 +480,7 @@ mod tests {
         g_son_son.add_sample(vec![150, 160]);
         model.generic_timings.push(g_son_son);
 
-        let mut map = PhonemeMap::new("Cascade");
+        let mut map = LanguageInfo::new("Cascade");
         map.add_phoneme("k", PhonemeType::Plosive);
         map.add_phoneme("t", PhonemeType::Plosive);
         map.add_phoneme("s", PhonemeType::Fricative);

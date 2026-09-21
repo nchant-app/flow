@@ -3,7 +3,7 @@
 fn main() {
     #[cfg(feature = "cli")]
     {
-        if let Err(e) = nchant_flow::cli::run() {
+        if let Err(e) = flow::cli::run() {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }

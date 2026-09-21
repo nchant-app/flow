@@ -32,6 +32,9 @@ impl MapClassifier {
 
 impl PhonemeClassifier<String> for MapClassifier {
     fn classify(&self, phoneme: &String) -> PhonemeType {
-        self.types.get(phoneme).copied().unwrap_or(PhonemeType::None)
+        self.types
+            .get(phoneme)
+            .copied()
+            .unwrap_or(PhonemeType::None)
     }
 }

@@ -18,9 +18,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{
-    ClusterTiming, GenericTiming, PhonemeType, TimingMetadata, TimingModel,
-};
+use crate::model::{ClusterTiming, GenericTiming, PhonemeType, TimingMetadata, TimingModel};
 
 /// A node in a phoneme timing trie.
 ///

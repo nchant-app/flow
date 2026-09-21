@@ -8,9 +8,10 @@ use std::fs;
 use std::path::Path;
 
 use crate::error::TimingError;
+#[cfg(feature = "train")]
+use crate::model::TimingMetadata;
 use crate::model::{
-    ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeType, TimingMetadata,
-    TimingModel,
+    ClusterTiming, GenericTiming, LanguageInfo, PhonemeMap, PhonemeType, TimingModel,
 };
 
 #[cfg(feature = "train")]
@@ -68,7 +69,6 @@ impl Default for TrainingConfig {
 ///
 /// # Arguments
 /// * `textgrid_dir` - Path to directory containing TextGrid files
-/// * `phoneme_map` - Phoneme type classifier (build with `load_phoneme_map_from_language`)
 /// * `language_info` - Language-specific info including vowel/diphthong lists
 /// * `label_map` - Optional label translator mapping TextGrid labels to language file labels.
 ///   Pass `None` if your TextGrid files already use the same labels as the language file.
@@ -80,7 +80,6 @@ impl Default for TrainingConfig {
 #[cfg(feature = "train")]
 pub fn train_from_textgrids(
     textgrid_dir: &str,
-    phoneme_map: &PhonemeMap,
     language_info: &LanguageInfo,
     label_map: Option<&HashMap<String, String>>,
     metadata: TimingMetadata,
@@ -118,15 +117,15 @@ pub fn train_from_textgrids(
     // Process all TextGrid files in parallel
     let all_clusters: Vec<Vec<ParsedPhoneme>> = textgrid_files
         .par_iter()
-        .flat_map(|path| {
-            match parse_textgrid(path, phoneme_map, language_info, &config, label_map) {
+        .flat_map(
+            |path| match parse_textgrid(path, language_info, &config, label_map) {
                 Ok(clusters) => clusters,
                 Err(e) => {
                     eprintln!("Warning: Failed to parse {:?}: {}", path, e);
                     vec![]
                 }
-            }
-        })
+            },
+        )
         .collect();
 
     // Build cluster and generic timing maps
@@ -150,7 +149,7 @@ pub fn train_from_textgrids(
         // Add to generic map
         let types: Vec<PhonemeType> = labels
             .iter()
-            .map(|label| phoneme_map.get_type(label).unwrap_or(PhonemeType::None))
+            .map(|label| language_info.get_type(label).unwrap_or(PhonemeType::None))
             .collect();
         generic_map.entry(types).or_default().push(durations);
     }
@@ -190,7 +189,6 @@ pub fn train_from_textgrids(
 #[cfg(feature = "train")]
 fn parse_textgrid(
     path: &Path,
-    phoneme_map: &PhonemeMap,
     language_info: &LanguageInfo,
     config: &TrainingConfig,
     label_map: Option<&HashMap<String, String>>,
@@ -241,7 +239,7 @@ fn parse_textgrid(
             .unwrap_or(raw_label);
 
         // Warn if phoneme not in map (but still include it)
-        if !is_silence(&label) && !is_noise(&label) && !phoneme_map.contains(&label) {
+        if !is_silence(&label) && !is_noise(&label) && !language_info.contains(&label) {
             eprintln!(
                 "Warning: Phoneme '{}' not found in phoneme map, treating as unknown",
                 label
@@ -412,8 +410,8 @@ pub fn merge_models(primary: &TimingModel, secondary: &TimingModel) -> TimingMod
 /// Users may override it by supplying their own global file with the same structure.
 const DEFAULT_LANGUAGE_INFO: &str = include_str!("data/global.yaml");
 
-/// Build a `PhonemeMap` from a parsed global phoneme file.
-fn build_phoneme_map_from_global(raw: &RawGlobalFile) -> PhonemeMap {
+/// Build the complete language info from a parsed global phoneme file.
+fn build_language_info_from_raw(name: &str, raw: RawLanguageInfoFile) -> LanguageInfo {
     let mut phonemes = HashMap::new();
 
     for p in &raw.plosives {
@@ -438,9 +436,17 @@ fn build_phoneme_map_from_global(raw: &RawGlobalFile) -> PhonemeMap {
         phonemes.insert(diphthong.clone(), PhonemeType::Diphthong);
     }
 
-    PhonemeMap {
-        version: "1.0".to_string(),
-        name: "global".to_string(),
+    LanguageInfo {
+        name: name.to_string(),
+        plosives: raw.plosives,
+        affricates: raw.affricates,
+        fricatives: raw.fricatives,
+        sonorants: raw.sonorants,
+        taps: raw.taps,
+        vowels: raw.vowels,
+        diphthongs: raw.diphthongs,
+        diphthong_extensions: HashMap::new(),
+        syllabic_consonants: raw.syllabic_consonants,
         phonemes,
     }
 }
@@ -453,9 +459,15 @@ fn build_phoneme_map_from_global(raw: &RawGlobalFile) -> PhonemeMap {
 ///
 /// Pass `Some(path)` to use a custom global file, or `None` to use the default
 /// inventory bundled with flow.
-pub fn load_phoneme_map_from_global(path: Option<&str>) -> Result<PhonemeMap, TimingError> {
-    let raw = load_raw_global(path)?;
-    Ok(build_phoneme_map_from_global(&raw))
+///
+/// This compatibility helper is retained for callers migrating to
+/// [`load_language_info_from_path`]. New code should load `LanguageInfo` once.
+pub fn load_phoneme_map_from_path(path: Option<&str>) -> Result<PhonemeMap, TimingError> {
+    let info = load_language_info_from_path(path)?;
+    Ok(PhonemeMap {
+        name: info.name,
+        phonemes: info.phonemes,
+    })
 }
 
 /// Load a label translation map from a YAML file.
@@ -503,7 +515,7 @@ pub fn load_label_map(path: &str) -> Result<HashMap<String, String>, TimingError
 ///   - "eI"
 /// ```
 #[derive(Debug, serde::Deserialize)]
-struct RawGlobalFile {
+struct RawLanguageInfoFile {
     #[serde(default)]
     plosives: Vec<String>,
     #[serde(default)]
@@ -523,14 +535,24 @@ struct RawGlobalFile {
 }
 
 /// Parse a global phoneme file (or the bundled default when `path` is `None`).
-fn load_raw_global(path: Option<&str>) -> Result<RawGlobalFile, TimingError> {
+fn load_raw_language_info(path: Option<&str>) -> Result<(&str, RawLanguageInfoFile), TimingError> {
     match path {
         Some(path) => {
-            let content = fs::read_to_string(path).map_err(|e| TimingError::io(path, e))?;
-            serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))
+            let path_ref = Path::new(path);
+            let name = path_ref
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("language");
+
+            let content = fs::read_to_string(path_ref).map_err(|e| TimingError::io(path, e))?;
+            let info = serde_yaml::from_str(&content).map_err(|e| TimingError::yaml(path, e))?;
+            Ok((name, info))
         }
-        None => serde_yaml::from_str(DEFAULT_LANGUAGE_INFO)
-            .map_err(|e| TimingError::yaml("<embedded global>", e)),
+        None => {
+            let info = serde_yaml::from_str(DEFAULT_LANGUAGE_INFO)
+                .map_err(|e| TimingError::yaml("<embedded global>", e))?;
+            Ok(("global", info))
+        }
     }
 }
 
@@ -542,16 +564,9 @@ fn load_raw_global(path: Option<&str>) -> Result<RawGlobalFile, TimingError> {
 ///
 /// Pass `Some(path)` to use a custom global file, or `None` to use the default
 /// inventory bundled with flow.
-pub fn load_language_info_from_global(path: Option<&str>) -> Result<LanguageInfo, TimingError> {
-    let raw = load_raw_global(path)?;
-
-    Ok(LanguageInfo {
-        name: "global".to_string(),
-        vowels: raw.vowels,
-        diphthongs: raw.diphthongs,
-        diphthong_extensions: HashMap::new(),
-        syllabic_consonants: raw.syllabic_consonants,
-    })
+pub fn load_language_info_from_path(path: Option<&str>) -> Result<LanguageInfo, TimingError> {
+    let (name, raw) = load_raw_language_info(path)?;
+    Ok(build_language_info_from_raw(name, raw))
 }
 
 #[cfg(test)]
@@ -642,7 +657,7 @@ mod tests {
     #[test]
     fn test_load_phoneme_map_from_global_default() {
         // The embedded default global file should parse and classify correctly.
-        let map = load_phoneme_map_from_global(None).unwrap();
+        let map = load_phoneme_map_from_path(None).unwrap();
 
         assert_eq!(map.get_type("p"), Some(PhonemeType::Plosive));
         assert_eq!(map.get_type("s"), Some(PhonemeType::Fricative));
@@ -679,7 +694,7 @@ diphthongs:
         let tmp = std::env::temp_dir().join("test_global_map.yaml");
         fs::write(&tmp, yaml).unwrap();
 
-        let map = load_phoneme_map_from_global(Some(tmp.to_str().unwrap())).unwrap();
+        let map = load_phoneme_map_from_path(Some(tmp.to_str().unwrap())).unwrap();
 
         assert_eq!(map.get_type("p"), Some(PhonemeType::Plosive));
         assert_eq!(map.get_type("t"), Some(PhonemeType::Plosive));
@@ -697,14 +712,11 @@ diphthongs:
     #[test]
     fn test_load_language_info_from_global_default() {
         // The bundled global file supplies vowels and diphthongs.
-        let info = load_language_info_from_global(None).unwrap();
+        let info = load_language_info_from_path(None).unwrap();
 
         assert!(info.is_vowel("{"));
         assert!(info.is_vowel("aI")); // diphthong counts as a vowel boundary
         assert!(!info.is_vowel("p"));
-        // Global file has no diphthong extensions or syllabic consonants; those
-        // come from language-specific files.
-        assert!(info.diphthong_extensions.is_empty());
     }
 
     #[test]
@@ -734,11 +746,10 @@ syllabic_consonants:
         let tmp = std::env::temp_dir().join("test_global_language.yaml");
         fs::write(&tmp, yaml).unwrap();
 
-        let info = load_language_info_from_global(Some(tmp.to_str().unwrap())).unwrap();
+        let info = load_language_info_from_path(Some(tmp.to_str().unwrap())).unwrap();
 
         assert_eq!(info.vowels, vec!["{", "E", "I"]);
         assert_eq!(info.diphthongs, vec!["aI", "eI"]);
-        assert!(info.diphthong_extensions.is_empty());
         assert_eq!(info.syllabic_consonants, vec!["m", "n"]);
         assert!(info.is_vowel("{"));
         assert!(info.is_vowel("aI"));

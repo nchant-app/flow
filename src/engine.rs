@@ -1,11 +1,8 @@
 //! High-level engine for repeated timing predictions.
 //!
-//! `TimingEngine` bundles all resources (phoneme map, language info, timing model)
+//! `TimingEngine` bundles all resources (language info and timing model)
 //! into a single object that can be loaded once and reused across multiple predictions.
 //! This is more efficient than loading from files for each inference.
-//!
-//! The engine is `Clone`-cheap (uses `Arc` internally) and `Send + Sync`,
-//! making it safe to share across threads.
 //!
 //! # Example
 //!
@@ -15,8 +12,6 @@
 //! // The bundled global inventory supplies phoneme types and language info.
 //! let engine = TimingEngine::from_paths("timing_model.yaml").unwrap();
 //!
-//! // Clone is cheap (Arc reference count bump)
-//! let engine2 = engine.clone();
 //!
 //! // Use it for multiple predictions
 //! let result1 = engine.predict(&["k".to_string(), "a".to_string()]);
@@ -27,24 +22,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::error::TimingError;
-use crate::model::{LanguageInfo, PhonemeMap, PhonemeType, TimingModel, TimingResult};
+use crate::model::{LanguageInfo, PhonemeType, TimingModel, TimingResult};
 use crate::predict::TimingLookup;
-use crate::train::{load_language_info_from_global, load_phoneme_map_from_global, load_timing_model};
+use crate::train::{load_language_info_from_path, load_timing_model};
 
 /// Shared inner state of the engine (immutable after construction).
 struct TimingEngineInner {
-    phoneme_map: PhonemeMap,
     language_info: LanguageInfo,
     lookup: TimingLookup<String>,
 }
 
 /// A high-level engine that bundles all resources for timing predictions.
 ///
-/// This struct holds the phoneme map, language info, and timing lookup structure,
+/// This struct holds the language info, including phoneme classifications, and lookup structure,
 /// allowing efficient repeated predictions without reloading from disk.
-///
-/// `TimingEngine` is cheap to clone (internally uses `Arc`) and is `Send + Sync`,
-/// making it safe to share across threads.
 #[derive(Clone)]
 pub struct TimingEngine {
     inner: Arc<TimingEngineInner>,
@@ -86,23 +77,17 @@ impl TimingEngine {
         global_path: Option<&str>,
     ) -> Result<Self, TimingError> {
         let model = load_timing_model(model_path)?;
-        let phoneme_map = load_phoneme_map_from_global(global_path)?;
-        let language_info = load_language_info_from_global(global_path)?;
+        let language_info = load_language_info_from_path(global_path)?;
 
-        Ok(Self::from_components(model, phoneme_map, language_info))
+        Ok(Self::from_components(model, language_info))
     }
 
     /// Create an engine from pre-loaded components.
-    pub fn from_components(
-        model: TimingModel,
-        phoneme_map: PhonemeMap,
-        language_info: LanguageInfo,
-    ) -> Self {
-        let lookup = TimingLookup::from_model(&model, &phoneme_map);
+    pub fn from_components(model: TimingModel, language_info: LanguageInfo) -> Self {
+        let lookup = TimingLookup::from_model(&model, &language_info);
 
         Self {
             inner: Arc::new(TimingEngineInner {
-                phoneme_map,
                 language_info,
                 lookup,
             }),
@@ -118,11 +103,6 @@ impl TimingEngine {
     /// Predict timings for a phoneme sequence.
     pub fn predict(&self, phonemes: &[String]) -> TimingResult {
         self.inner.lookup.predict(phonemes)
-    }
-
-    /// Get a reference to the phoneme map.
-    pub fn phoneme_map(&self) -> &PhonemeMap {
-        &self.inner.phoneme_map
     }
 
     /// Get a reference to the language info.
@@ -165,9 +145,9 @@ impl TimingEngine {
         self.inner.lookup.source_files()
     }
 
-    /// Validate that all phonemes exist in the phoneme map.
+    /// Validate that all phonemes exist in the language inventory.
     pub fn validate(&self, phonemes: &[String]) -> Vec<String> {
-        crate::predict::validate_phonemes(phonemes, &self.inner.phoneme_map)
+        crate::predict::validate_phonemes(phonemes, &self.inner.language_info)
     }
 
     /// Predict timings for multiple utterances at once.
@@ -210,7 +190,7 @@ impl std::fmt::Debug for TimingEngine {
             .field("library", &self.library())
             .field("language", &self.language())
             .field("voice_color", &self.voice_color())
-            .field("phoneme_count", &self.inner.phoneme_map.phonemes.len())
+            .field("phoneme_count", &self.inner.language_info.phonemes.len())
             .field("language_name", &self.inner.language_info.name)
             .finish()
     }
@@ -219,7 +199,6 @@ impl std::fmt::Debug for TimingEngine {
 /// Builder for constructing a `TimingEngine` step by step.
 pub struct TimingEngineBuilder {
     model: Option<TimingModel>,
-    phoneme_map: Option<PhonemeMap>,
     language_info: Option<LanguageInfo>,
     fallbacks: HashMap<PhonemeType, u32>,
 }
@@ -229,7 +208,6 @@ impl TimingEngineBuilder {
     pub fn new() -> Self {
         Self {
             model: None,
-            phoneme_map: None,
             language_info: None,
             fallbacks: default_fallbacks(),
         }
@@ -247,30 +225,13 @@ impl TimingEngineBuilder {
         Ok(self)
     }
 
-    /// Set the phoneme map.
-    pub fn phoneme_map(mut self, map: PhonemeMap) -> Self {
-        self.phoneme_map = Some(map);
-        self
-    }
-
-    /// Load both the phoneme map and language info from a global phoneme file.
+    /// Load the complete language info from a global phoneme file.
     ///
     /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
     /// bundled with flow. This populates the phoneme type classifier
-    /// (for fallback) and the vowel / diphthong / syllabic-consonant data in one
-    /// step — everything the engine needs apart from the timing model itself.
+    /// (for fallback) and the vowel / diphthong / syllabic-consonant data in one step.
     pub fn global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
-        self.phoneme_map = Some(load_phoneme_map_from_global(path)?);
-        self.language_info = Some(load_language_info_from_global(path)?);
-        Ok(self)
-    }
-
-    /// Load just the phoneme map from a global phoneme file.
-    ///
-    /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
-    /// bundled with flow. The phoneme map drives type-based fallback.
-    pub fn phoneme_map_from_global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
-        self.phoneme_map = Some(load_phoneme_map_from_global(path)?);
+        self.language_info = Some(load_language_info_from_path(path)?);
         Ok(self)
     }
 
@@ -285,7 +246,7 @@ impl TimingEngineBuilder {
     /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
     /// bundled with flow.
     pub fn language_info_from_global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
-        self.language_info = Some(load_language_info_from_global(path)?);
+        self.language_info = Some(load_language_info_from_path(path)?);
         Ok(self)
     }
 
@@ -297,19 +258,10 @@ impl TimingEngineBuilder {
 
     /// Build the engine. Returns an error if required components are missing.
     ///
-    /// `phoneme_map` is optional: if not set, type-based fallback is disabled
-    /// (all unknown clusters fall back to default durations by type, which defaults to 0ms
-    /// for unclassified phonemes). Set it via `.phoneme_map()` or
-    /// `.phoneme_map_from_global()` for accurate fallback.
     pub fn build(self) -> Result<TimingEngine, TimingError> {
         let model = self.model.ok_or_else(|| {
-            TimingError::Other(
-                "TimingModel is required. Use .model() or .model_path()".to_string(),
-            )
+            TimingError::Other("TimingModel is required. Use .model() or .model_path()".to_string())
         })?;
-        let phoneme_map = self
-            .phoneme_map
-            .unwrap_or_else(|| PhonemeMap::new("empty"));
         let language_info = self.language_info.ok_or_else(|| {
             TimingError::Other(
                 "LanguageInfo is required. Use .language_info() or .language_info_path()"
@@ -317,9 +269,8 @@ impl TimingEngineBuilder {
             )
         })?;
 
-        let lookup = TimingLookup::from_model(&model, &phoneme_map);
+        let lookup = TimingLookup::from_model(&model, &language_info);
         let inner = TimingEngineInner {
-            phoneme_map,
             language_info,
             lookup,
         };
@@ -349,15 +300,12 @@ mod tests {
         ct.add_sample(vec![100, 105]);
         model.cluster_timings.push(ct);
 
-        let mut phoneme_map = PhonemeMap::new("Test");
-        phoneme_map.add_phoneme("k", PhonemeType::Plosive);
-        phoneme_map.add_phoneme("s", PhonemeType::Fricative);
-        phoneme_map.add_phoneme("a", PhonemeType::Vowel);
-
         let mut language_info = LanguageInfo::new("English");
+        language_info.add_phoneme("k", PhonemeType::Plosive);
+        language_info.add_phoneme("s", PhonemeType::Fricative);
         language_info.add_vowel("a");
 
-        TimingEngine::from_components(model, phoneme_map, language_info)
+        TimingEngine::from_components(model, language_info)
     }
 
     #[test]
@@ -394,7 +342,6 @@ mod tests {
     #[test]
     fn test_engine_accessors() {
         let engine = create_test_engine();
-        assert_eq!(engine.phoneme_map().name, "Test");
         assert_eq!(engine.language_info().name, "English");
     }
 
@@ -455,14 +402,11 @@ mod tests {
         ct.add_sample(vec![100]);
         model.cluster_timings.push(ct);
 
-        let mut phoneme_map = PhonemeMap::new("Test");
-        phoneme_map.add_phoneme("k", PhonemeType::Plosive);
-
-        let language_info = LanguageInfo::new("English");
+        let mut language_info = LanguageInfo::new("English");
+        language_info.add_phoneme("k", PhonemeType::Plosive);
 
         let engine = TimingEngineBuilder::new()
             .model(model)
-            .phoneme_map(phoneme_map)
             .language_info(language_info)
             .fallback(PhonemeType::Plosive, 90)
             .build()
