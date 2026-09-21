@@ -2,24 +2,19 @@
 //!
 //! Provides commands for training timing models and predicting phoneme durations.
 
-#[cfg(feature = "cli")]
 use clap::{Parser, Subcommand};
 
-#[cfg(feature = "cli")]
 use crate::error::TimingError;
-#[cfg(all(feature = "cli", feature = "train"))]
+#[cfg(feature = "train")]
 use crate::model::TimingMetadata;
-#[cfg(feature = "cli")]
 use crate::model::UtteranceInput;
-#[cfg(feature = "cli")]
-use crate::predict::load_timing_lookup;
-#[cfg(feature = "cli")]
-use crate::train::load_timing_model;
-#[cfg(all(feature = "cli", feature = "train"))]
-use crate::train::{load_label_map, load_language_info_from_path, save_timing_model};
+#[cfg(feature = "train")]
+use crate::resources::{load_language_info_from_path, save_timing_model};
+use crate::resources::{load_timing_lookup, load_timing_model};
+#[cfg(feature = "train")]
+use crate::train::load_label_map;
 
 /// mai-timing: Open-source phoneme timing model for voice synthesis
-#[cfg(feature = "cli")]
 #[derive(Parser)]
 #[command(name = "mai-timing")]
 #[command(author, version, about, long_about = None)]
@@ -28,7 +23,6 @@ pub struct Cli {
     pub command: Commands,
 }
 
-#[cfg(feature = "cli")]
 #[derive(Subcommand)]
 pub enum Commands {
     /// Train a timing model from TextGrid files
@@ -104,7 +98,6 @@ pub enum Commands {
 }
 
 /// Run the CLI application.
-#[cfg(feature = "cli")]
 pub fn run() -> Result<(), TimingError> {
     let cli = Cli::parse();
 
@@ -147,7 +140,7 @@ pub fn run() -> Result<(), TimingError> {
     }
 }
 
-#[cfg(all(feature = "cli", feature = "train"))]
+#[cfg(feature = "train")]
 fn run_train(
     textgrid_dir: &str,
     language_info_path: Option<&str>,
@@ -200,7 +193,7 @@ fn run_train(
     Ok(())
 }
 
-#[cfg(all(feature = "cli", not(feature = "train")))]
+#[cfg(not(feature = "train"))]
 fn run_train(
     _textgrid_dir: &str,
     _language_info_path: Option<&str>,
@@ -217,7 +210,6 @@ fn run_train(
     ))
 }
 
-#[cfg(feature = "cli")]
 fn run_predict(
     timing_model_path: &str,
     global_path: Option<&str>,
@@ -281,7 +273,6 @@ fn run_predict(
     Ok(())
 }
 
-#[cfg(feature = "cli")]
 fn run_info(timing_model_path: &str) -> Result<(), TimingError> {
     let model = load_timing_model(timing_model_path)?;
 

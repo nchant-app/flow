@@ -11,7 +11,6 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use crate::classifier::PhonemeClassifier;
-use crate::error::TimingError;
 use crate::model::{LanguageInfo, PhonemeType, TimingModel, TimingResult};
 use crate::tree::{PhonemeTree, TreeNode};
 
@@ -268,29 +267,6 @@ pub fn validate_phonemes(phonemes: &[String], language_info: &LanguageInfo) -> V
         .filter(|p| !language_info.contains(p))
         .cloned()
         .collect()
-}
-
-/// Load a timing model from YAML and create a lookup structure.
-///
-/// # Arguments
-/// * `model_path` - Path to the timing model YAML file
-/// * `global_path` - Optional path to a global phoneme file for type classification.
-///   Pass `None` to use the default inventory bundled with flow.
-///
-/// # Returns
-/// A `TimingLookup` ready for prediction, or a `TimingError`.
-pub fn load_timing_lookup(
-    model_path: &str,
-    global_path: Option<&str>,
-) -> Result<TimingLookup<String>, TimingError> {
-    let model_content =
-        std::fs::read_to_string(model_path).map_err(|e| TimingError::io(model_path, e))?;
-    let model: TimingModel =
-        serde_yaml::from_str(&model_content).map_err(|e| TimingError::yaml(model_path, e))?;
-
-    let language_info = crate::train::load_language_info_from_path(global_path)?;
-
-    Ok(TimingLookup::from_model(&model, &language_info))
 }
 
 #[cfg(test)]

@@ -11,7 +11,6 @@
 //!
 //! - `cli` - Command-line interface
 //! - `train` - TextGrid training functionality
-//! - `full` - All features (cli + train)
 //!
 //! ## Quick Start
 //!
@@ -55,10 +54,14 @@ pub mod model;
 /// Timing prediction logic and lookup structures.
 pub mod predict;
 
+/// YAML resource loading and model serialization helpers.
+pub mod resources;
+
 /// Prefix-tree structures for cluster and generic timing lookups.
 pub mod tree;
 
 /// Training from TextGrid files.
+#[cfg(feature = "train")]
 pub mod train;
 
 /// Command-line interface.
@@ -75,11 +78,11 @@ pub use model::{
     TimingMetadata, TimingModel, TimingResult, UtteranceInput,
 };
 pub use predict::{TimingLookup, validate_phonemes};
-pub use train::{
-    load_label_map, load_language_info_from_path, load_phoneme_map_from_path, load_timing_model,
-    merge_models, save_timing_model,
+pub use resources::{
+    load_language_info_from_path, load_phoneme_map_from_path, load_timing_lookup,
+    load_timing_model, merge_models, save_timing_model,
 };
 pub use tree::{PhonemeTree, TreeNode};
 
 #[cfg(feature = "train")]
-pub use train::{TrainingConfig, train_from_textgrids};
+pub use train::{TrainingConfig, load_label_map, train_from_textgrids};

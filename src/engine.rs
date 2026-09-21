@@ -15,7 +15,7 @@
 //!
 //! // Use it for multiple predictions
 //! let result1 = engine.predict(&["k".to_string(), "a".to_string()]);
-//! let result2 = engine2.predict(&["s".to_string(), "t".to_string()]);
+//! let result2 = engine.predict(&["s".to_string(), "t".to_string()]);
 //! ```
 
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ use std::sync::Arc;
 use crate::error::TimingError;
 use crate::model::{LanguageInfo, PhonemeType, TimingModel, TimingResult};
 use crate::predict::TimingLookup;
-use crate::train::{load_language_info_from_path, load_timing_model};
+use crate::resources::{load_language_info_from_path, load_timing_model};
 
 /// Shared inner state of the engine (immutable after construction).
 struct TimingEngineInner {
