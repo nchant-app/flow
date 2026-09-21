@@ -74,7 +74,7 @@ impl PhonemeMap {
 /// Language-specific information for timing generation.
 ///
 /// Parsed from a language YAML file that uses X-SAMPA notation.
-/// Defines which phonemes are vowels, diphthongs, and syllabic consonants,
+/// Defines which phonemes are vowels, diphthongs, and sonorants,
 /// which is crucial for splitting utterances into consonant clusters during training.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguageInfo {
@@ -94,11 +94,6 @@ pub struct LanguageInfo {
     pub vowels: Vec<String>,
     /// Diphthong X-SAMPA strings
     pub diphthongs: Vec<String>,
-    /// Extension vowel for each diphthong, when defined.
-    #[serde(default)]
-    pub diphthong_extensions: HashMap<String, String>,
-    /// Syllabic consonant X-SAMPA strings (for future use)
-    pub syllabic_consonants: Vec<String>,
     /// Mapping from X-SAMPA phonemes to their articulatory types.
     pub phonemes: HashMap<String, PhonemeType>,
 }
@@ -115,8 +110,6 @@ impl LanguageInfo {
             taps: Vec::new(),
             vowels: Vec::new(),
             diphthongs: Vec::new(),
-            diphthong_extensions: HashMap::new(),
-            syllabic_consonants: Vec::new(),
             phonemes: HashMap::new(),
         }
     }
@@ -128,12 +121,10 @@ impl LanguageInfo {
         self.phonemes.insert(phoneme, PhonemeType::Vowel);
     }
 
-    /// Add a diphthong phoneme (X-SAMPA string) with its extension vowel.
-    pub fn add_diphthong(&mut self, phoneme: impl Into<String>, extension: impl Into<String>) {
+    /// Add a diphthong phoneme (X-SAMPA string).
+    pub fn add_diphthong(&mut self, phoneme: impl Into<String>) {
         let phoneme = phoneme.into();
         self.diphthongs.push(phoneme.clone());
-        self.diphthong_extensions
-            .insert(phoneme.clone(), extension.into());
         self.phonemes.insert(phoneme, PhonemeType::Diphthong);
     }
 
@@ -254,8 +245,6 @@ impl GenericTiming {
 /// ready for serialization to YAML and use in prediction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimingModel {
-    /// Version of the timing model format
-    pub version: String,
     /// Model metadata
     pub metadata: TimingMetadata,
     /// Cluster-specific timing data (exact phoneme matches)
@@ -268,7 +257,6 @@ impl TimingModel {
     /// Create a new empty timing model.
     pub fn new(metadata: TimingMetadata) -> Self {
         Self {
-            version: "1.0".to_string(),
             metadata,
             cluster_timings: Vec::new(),
             generic_timings: Vec::new(),

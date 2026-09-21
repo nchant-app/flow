@@ -87,7 +87,6 @@ pub fn merge_models(primary: &TimingModel, secondary: &TimingModel) -> TimingMod
         .collect();
 
     TimingModel {
-        version: primary.version.clone(),
         metadata: primary.metadata.clone(),
         cluster_timings,
         generic_timings,
@@ -134,8 +133,6 @@ fn build_language_info_from_raw(name: &str, raw: RawLanguageInfoFile) -> Languag
         taps: raw.taps,
         vowels: raw.vowels,
         diphthongs: raw.diphthongs,
-        diphthong_extensions: HashMap::new(),
-        syllabic_consonants: raw.syllabic_consonants,
         phonemes,
     }
 }
@@ -163,7 +160,7 @@ pub fn load_phoneme_map_from_path(path: Option<&str>) -> Result<PhonemeMap, Timi
 ///
 /// Each top-level key is a `PhonemeType`; its list holds the phonemes of that
 /// type. This single file is the source of truth for both type classification
-/// and the vowel / diphthong / syllabic-consonant data needed to split clusters.
+/// and the sonorant, vowel, and diphthong data needed to split clusters.
 ///
 /// ```yaml
 /// plosives:
@@ -201,8 +198,6 @@ struct RawLanguageInfoFile {
     vowels: Vec<String>,
     #[serde(default)]
     diphthongs: Vec<String>,
-    #[serde(default)]
-    syllabic_consonants: Vec<String>,
 }
 
 /// Parse a global phoneme file (or the bundled default when `path` is `None`).
@@ -230,8 +225,8 @@ fn load_raw_language_info(path: Option<&str>) -> Result<(&str, RawLanguageInfoFi
 /// Load language info from a global phoneme file.
 ///
 /// The vowels and diphthongs declared in the global file become the vowel
-/// boundaries used to split consonant clusters; diphthong extensions and
-/// syllabic consonants are taken from the same file.
+/// boundaries used to split consonant clusters. Sonorants are taken from the
+/// same file's `sonorants` list.
 ///
 /// Pass `Some(path)` to use a custom global file, or `None` to use the default
 /// inventory bundled with flow.

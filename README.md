@@ -127,7 +127,7 @@ flow info timing_model.yaml
 use nchant_flow::TimingEngine;
 
 // The bundled global inventory supplies phoneme types plus vowels, diphthongs,
-// and syllabic consonants. Use `from_paths_with_global` to pass a custom one.
+// and sonorants. Use `from_paths_with_global` to pass a custom one.
 let engine = TimingEngine::from_paths("timing_model.yaml")?;
 
 let result = engine.predict(&["h".to_string(), "E".to_string(), "l".to_string(), "@U".to_string()]);

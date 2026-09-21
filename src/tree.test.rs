@@ -1,4 +1,3 @@
-
 use super::*;
 
 #[test]
@@ -31,7 +30,7 @@ fn test_phoneme_tree_roundtrip() {
     model.generic_timings.push(gt);
 
     let tree = PhonemeTree::from_model(&model);
-    let rebuilt = tree.to_model(model.version.clone(), model.metadata.clone());
+    let rebuilt = tree.to_model(model.metadata.clone());
 
     assert_eq!(rebuilt.cluster_timings.len(), 1);
     assert_eq!(rebuilt.cluster_timings[0].phonemes, vec!["k", "s"]);

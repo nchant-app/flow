@@ -1,6 +1,6 @@
 [package]
 name = "nchant-flow"
-version = "0.5.0"
+version = "0.6.0"
 description = "Open-source phoneme timing model for voice synthesis"
 authors = [
     "Caleb Long <ccodaze@mailbox.org>",

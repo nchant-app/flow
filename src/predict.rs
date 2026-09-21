@@ -43,7 +43,6 @@ pub struct TimingLookup<K: Eq + Hash + Clone + Debug = String> {
     metadata_library: String,
     metadata_language: String,
     metadata_voice_color: String,
-    metadata_version: String,
     metadata_created_at: Option<String>,
     metadata_source_files: Option<Vec<String>>,
     cluster_tree: TreeNode<K>,
@@ -78,7 +77,6 @@ impl TimingLookup<String> {
             metadata_library: model.metadata.library.clone(),
             metadata_language: model.metadata.language.clone(),
             metadata_voice_color: model.metadata.voice_color.clone(),
-            metadata_version: model.version.clone(),
             metadata_created_at: model.metadata.created_at.clone(),
             metadata_source_files: model.metadata.source_files.clone(),
             cluster_tree,
@@ -111,7 +109,6 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
             metadata_library,
             metadata_language,
             metadata_voice_color,
-            metadata_version: "1.0".to_string(),
             metadata_created_at: None,
             metadata_source_files: None,
             cluster_tree,
@@ -133,11 +130,6 @@ impl<K: Eq + Hash + Clone + Debug> TimingLookup<K> {
     /// Get the voice color name from metadata.
     pub fn voice_color(&self) -> &str {
         &self.metadata_voice_color
-    }
-
-    /// Get the model version from metadata.
-    pub fn model_version(&self) -> &str {
-        &self.metadata_version
     }
 
     /// Get the creation timestamp, if available.

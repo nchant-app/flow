@@ -172,7 +172,6 @@ pub fn train_from_textgrids(
     metadata.created_at = Some(chrono_timestamp());
 
     Ok(TimingModel {
-        version: "1.0".to_string(),
         metadata,
         cluster_timings,
         generic_timings,

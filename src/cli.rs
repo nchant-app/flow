@@ -277,7 +277,6 @@ fn run_info(timing_model_path: &str) -> Result<(), TimingError> {
     let model = load_timing_model(timing_model_path)?;
 
     println!("Timing Model: {}", timing_model_path);
-    println!("  Version: {}", model.version);
     println!("  Library: {}", model.metadata.library);
     println!("  Language: {}", model.metadata.language);
     println!("  Voice Color: {}", model.metadata.voice_color);

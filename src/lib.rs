@@ -18,7 +18,7 @@
 //! use nchant_flow::TimingEngine;
 //!
 //! // The bundled global inventory supplies phoneme types plus vowels,
-//! // diphthongs, and syllabic consonants. Pass a custom global file with
+//! // diphthongs, and sonorants. Pass a custom global file with
 //! // `from_paths_with_global` to override it.
 //! // Create the engine once and reuse it for multiple predictions.
 //! let engine = TimingEngine::from_paths("path/to/timing_model.yaml")

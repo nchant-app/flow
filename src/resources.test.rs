@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::model::TimingMetadata;
 
@@ -85,9 +84,6 @@ vowels:
 diphthongs:
   - "aI"
   - "eI"
-syllabic_consonants:
-  - "m"
-  - "n"
 "#;
     let tmp = std::env::temp_dir().join("test_global_language.yaml");
     fs::write(&tmp, yaml).unwrap();
@@ -96,7 +92,7 @@ syllabic_consonants:
 
     assert_eq!(info.vowels, vec!["{", "E", "I"]);
     assert_eq!(info.diphthongs, vec!["aI", "eI"]);
-    assert_eq!(info.syllabic_consonants, vec!["m", "n"]);
+    assert_eq!(info.sonorants, vec!["m", "n", "l"]);
     assert!(info.is_vowel("{"));
     assert!(info.is_vowel("aI"));
     assert!(!info.is_vowel("p"));

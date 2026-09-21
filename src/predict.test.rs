@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::model::{ClusterTiming, GenericTiming, TimingMetadata};
 
@@ -298,7 +297,6 @@ fn test_metadata_accessors() {
     assert_eq!(lookup.library(), "TestLib");
     assert_eq!(lookup.language(), "English");
     assert_eq!(lookup.voice_color(), "Default");
-    assert_eq!(lookup.model_version(), "1.0");
     assert!(lookup.created_at().is_none());
     assert!(lookup.source_files().is_none());
 }

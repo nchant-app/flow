@@ -62,7 +62,7 @@ impl TimingEngine {
     /// Create an engine from a timing model, using the default bundled global inventory.
     ///
     /// The global phoneme file supplies both the phoneme type classifier and the
-    /// `LanguageInfo` (vowels, diphthongs, syllabic consonants). To supply a custom
+    /// `LanguageInfo` (vowels, diphthongs, sonorants). To supply a custom
     /// global file, use [`TimingEngine::from_paths_with_global`].
     pub fn from_paths(model_path: &str) -> Result<Self, TimingError> {
         Self::from_paths_with_global(model_path, None)
@@ -128,11 +128,6 @@ impl TimingEngine {
     /// Get the voice color name from the model metadata.
     pub fn voice_color(&self) -> &str {
         self.inner.lookup.voice_color()
-    }
-
-    /// Get the model version.
-    pub fn model_version(&self) -> &str {
-        self.inner.lookup.model_version()
     }
 
     /// Get the creation timestamp, if available.
@@ -229,7 +224,7 @@ impl TimingEngineBuilder {
     ///
     /// Pass `Some(path)` for a custom global file, or `None` to use the inventory
     /// bundled with flow. This populates the phoneme type classifier
-    /// (for fallback) and the vowel / diphthong / syllabic-consonant data in one step.
+    /// (for fallback) and the sonorant / vowel / diphthong data in one step.
     pub fn global(mut self, path: Option<&str>) -> Result<Self, TimingError> {
         self.language_info = Some(load_language_info_from_path(path)?);
         Ok(self)

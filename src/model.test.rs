@@ -1,4 +1,3 @@
-
 use super::*;
 
 #[test]
@@ -17,7 +16,7 @@ fn test_language_info() {
     let mut lang = LanguageInfo::new("English");
     lang.add_vowel("{");
     lang.add_vowel("i");
-    lang.add_diphthong("aI", "A");
+    lang.add_diphthong("aI");
 
     assert!(lang.is_vowel("{"));
     assert!(lang.is_vowel("aI"));
@@ -68,14 +67,15 @@ fn test_language_info_consonant_not_vowel() {
 }
 
 #[test]
-fn test_language_info_diphthong_extension() {
+fn test_language_info_diphthong() {
     let mut lang = LanguageInfo::new("English");
-    lang.add_diphthong("aI", "A");
-    lang.add_diphthong("eI", "E");
+    lang.add_diphthong("aI");
+    lang.add_diphthong("eI");
 
-    assert_eq!(lang.diphthong_extensions.get("aI"), Some(&"A".to_string()));
-    assert_eq!(lang.diphthong_extensions.get("eI"), Some(&"E".to_string()));
-    assert_eq!(lang.diphthong_extensions.get("oU"), None);
+    assert_eq!(lang.diphthongs, vec!["aI", "eI"]);
+    assert!(lang.is_vowel("aI"));
+    assert!(lang.is_vowel("eI"));
+    assert!(!lang.is_vowel("oU"));
 }
 
 #[test]
@@ -107,7 +107,6 @@ fn test_timing_model_new() {
     let metadata = TimingMetadata::new("TestLib", "English", "Default");
     let model = TimingModel::new(metadata);
 
-    assert_eq!(model.version, "1.0");
     assert_eq!(model.metadata.library, "TestLib");
     assert_eq!(model.metadata.language, "English");
     assert_eq!(model.metadata.voice_color, "Default");
@@ -179,7 +178,6 @@ fn test_timing_model_yaml_roundtrip() {
     let yaml = serde_yaml::to_string(&model).unwrap();
     let deserialized: TimingModel = serde_yaml::from_str(&yaml).unwrap();
 
-    assert_eq!(deserialized.version, model.version);
     assert_eq!(deserialized.metadata.library, model.metadata.library);
     assert_eq!(deserialized.cluster_timings.len(), 1);
     assert_eq!(deserialized.cluster_timings[0].phonemes, vec!["k", "a"]);

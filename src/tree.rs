@@ -125,7 +125,7 @@ impl PhonemeTree {
 
     /// Flatten the trees back into a [`TimingModel`] with the given metadata.
     #[must_use]
-    pub fn to_model(&self, version: impl Into<String>, metadata: TimingMetadata) -> TimingModel {
+    pub fn to_model(&self, metadata: TimingMetadata) -> TimingModel {
         let cluster_timings = self
             .cluster_tree
             .collect_paths()
@@ -141,7 +141,6 @@ impl PhonemeTree {
             .collect();
 
         TimingModel {
-            version: version.into(),
             metadata,
             cluster_timings,
             generic_timings,

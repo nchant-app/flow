@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::model::{ClusterTiming, TimingMetadata};
 
@@ -46,7 +45,6 @@ fn test_engine_metadata() {
     assert_eq!(engine.library(), "TestLib");
     assert_eq!(engine.language(), "English");
     assert_eq!(engine.voice_color(), "Default");
-    assert_eq!(engine.model_version(), "1.0");
 }
 
 #[test]

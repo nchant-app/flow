@@ -1,4 +1,3 @@
-
 use super::*;
 
 #[test]
@@ -55,7 +54,7 @@ fn test_split_by_vowels() {
 fn test_split_by_vowels_with_diphthong() {
     let mut lang = LanguageInfo::new("Test");
     lang.add_vowel("a");
-    lang.add_diphthong("aI", "A");
+    lang.add_diphthong("aI");
 
     let phonemes = vec![
         ParsedPhoneme {
