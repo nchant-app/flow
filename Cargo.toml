@@ -8,7 +8,7 @@ authors = [
 license = "MIT"
 edition = "2024"
 readme = "readme.md"
-keywords = ["voice", "synthesis", "timing", "phoneme", "tts"]
+keywords = ["voice", "synthesis", "timing", "phoneme", "linguistics"]
 categories = ["multimedia::audio", "science"]
 
 [dependencies]
