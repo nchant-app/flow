@@ -1,11 +1,11 @@
 [package]
 name = "nchant-flow"
-version = "0.4.0"
+version = "0.5.0"
 description = "Open-source phoneme timing model for voice synthesis"
 authors = [
     "Caleb Long <ccodaze@mailbox.org>",
 ]
-license = "MIT"
+license = "AGPL-3.0-only"
 edition = "2024"
 keywords = ["voice", "synthesis", "timing", "phoneme", "linguistics"]
 categories = ["multimedia::audio", "science"]
